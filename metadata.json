@@ -1,0 +1,5 @@
+{
+  "name": "OmniGen IDE",
+  "description": "A Google AI Studio-style web IDE that generates full-stack applications using Gemini 1.5 Flash.",
+  "requestFramePermissions": []
+}

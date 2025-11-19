@@ -1,0 +1,195 @@
+
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import Editor, { loader, Monaco } from '@monaco-editor/react';
+import { GeneratedFile } from '../types';
+import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch } from 'lucide-react';
+import { getSnippetsForLanguage } from '../utils/snippetLibrary';
+
+interface CodeEditorProps {
+  file: GeneratedFile | null;
+  onChange: (newContent: string) => void;
+  fontSize: number;
+  onAIAction: (action: string, filePath: string, code: string) => void;
+}
+
+const getLanguageFromPath = (path: string): string => {
+  const ext = path.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js': return 'javascript';
+    case 'jsx': return 'javascript';
+    case 'ts': return 'typescript';
+    case 'tsx': return 'typescript';
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'json': return 'json';
+    case 'py': return 'python';
+    case 'rs': return 'rust';
+    case 'go': return 'go';
+    case 'java': return 'java';
+    case 'md': return 'markdown';
+    case 'sh': return 'shell';
+    case 'yaml': return 'yaml';
+    default: return 'plaintext';
+  }
+};
+
+const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction }) => {
+  const language = useMemo(() => file ? getLanguageFromPath(file.path) : 'plaintext', [file]);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
+  const [displayContent, setDisplayContent] = useState("");
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const monacoRef = useRef<Monaco | null>(null);
+  const completionDisposableRef = useRef<any>(null);
+
+  // Configure Monaco
+  loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+  useEffect(() => {
+    if (file) {
+        setDisplayContent(file.content);
+    }
+  }, [file]);
+
+  useEffect(() => {
+    if (!file) return;
+    setSaveStatus('unsaved');
+    const handler = setTimeout(() => {
+      setSaveStatus('saving');
+      localStorage.setItem(`omnigen_cache_${file.path}`, file.content);
+      setTimeout(() => setSaveStatus('saved'), 400);
+    }, 2000);
+    return () => clearTimeout(handler);
+  }, [file?.content, file?.path]);
+
+  // Register Snippets when language or monaco instance changes
+  useEffect(() => {
+      if (monacoRef.current && language) {
+          // Dispose previous provider to avoid duplicates
+          if (completionDisposableRef.current) {
+              completionDisposableRef.current.dispose();
+          }
+
+          // Register new provider
+          completionDisposableRef.current = monacoRef.current.languages.registerCompletionItemProvider(language, {
+              provideCompletionItems: (model, position) => {
+                  const snippets = getSnippetsForLanguage(monacoRef.current, language);
+                  return { suggestions: snippets };
+              }
+          });
+      }
+
+      return () => {
+          if (completionDisposableRef.current) {
+              completionDisposableRef.current.dispose();
+          }
+      };
+  }, [language]);
+
+  const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+      monacoRef.current = monaco;
+  };
+
+  const handleAction = (action: string) => {
+      if (!file) return;
+      onAIAction(action, file.path, file.content);
+      setShowAiMenu(false);
+  }
+
+  if (!file) return null;
+
+  return (
+    <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative animate-in fade-in duration-300 group">
+      
+      {/* AI Floating Action Button (Visible on hover of editor area) */}
+      <div className="absolute top-4 right-8 z-10">
+        <div className="relative">
+            <button 
+                onClick={() => setShowAiMenu(!showAiMenu)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-full shadow-lg shadow-indigo-500/20 text-xs font-medium transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
+            >
+                <Sparkles size={12} />
+                AI Actions
+            </button>
+            
+            {showAiMenu && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2">
+                    <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                        <FileSearch size={14} className="text-blue-400"/> Explain Code
+                    </button>
+                    <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                        <Sparkles size={14} className="text-purple-400"/> Refactor & Optimize
+                    </button>
+                    <button onClick={() => handleAction('debug')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                        <Bug size={14} className="text-red-400"/> Find Bugs
+                    </button>
+                    <button onClick={() => handleAction('comments')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                        <MessageSquarePlus size={14} className="text-green-400"/> Add Comments
+                    </button>
+                </div>
+            )}
+        </div>
+      </div>
+
+      <div className="flex-1 relative">
+        <Editor
+          height="100%"
+          path={file.path}
+          language={language}
+          value={displayContent}
+          theme="vs-dark"
+          onMount={handleEditorDidMount}
+          onChange={(value) => onChange(value || '')}
+          options={{
+            minimap: { enabled: true, scale: 0.75 },
+            fontSize: fontSize,
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontLigatures: true,
+            scrollBeyondLastLine: false,
+            smoothScrolling: true,
+            automaticLayout: true,
+            wordWrap: 'on',
+            padding: { top: 20, bottom: 20 },
+            renderLineHighlight: 'all',
+            bracketPairColorization: { enabled: true },
+            formatOnType: true,
+            formatOnPaste: true,
+            tabSize: 2,
+            snippetSuggestions: 'top', // Ensure our snippets show up high
+          }}
+        />
+      </div>
+
+      {/* Status Bar */}
+      <div className="h-6 bg-[#007acc] flex items-center px-3 justify-between text-[10px] text-white shrink-0 select-none">
+        <div className="flex items-center gap-4">
+            <span className="font-bold">{language.toUpperCase()}</span>
+            <span>UTF-8</span>
+            <span>{fontSize}px</span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+            {saveStatus === 'unsaved' && (
+                <span className="flex items-center gap-1 text-white">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div> Unsaved
+                </span>
+            )}
+            {saveStatus === 'saving' && (
+                <span className="flex items-center gap-1 text-white/80">
+                   <Save size={10} className="animate-pulse" /> Saving...
+                </span>
+            )}
+            {saveStatus === 'saved' && (
+                <span className="flex items-center gap-1 text-white/90">
+                    <CheckCircle size={10} /> Saved
+                </span>
+            )}
+        </div>
+      </div>
+      
+      {/* Click outside listener for menu */}
+      {showAiMenu && <div className="fixed inset-0 z-0" onClick={() => setShowAiMenu(false)}></div>}
+    </div>
+  );
+};
+
+export default CodeEditor;
