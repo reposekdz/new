@@ -11,6 +11,7 @@ const getSystemInstruction = (isModification) => {
     3.  **Performance Review**: Ensure O(n) or better algorithms, memoization, and lazy loading.
     4.  **Scalability Check**: Ensure the code supports 10,000+ simultaneous users.
     5.  **Test Strategy**: Plan Vitest/Jest unit tests for critical logic.
+    6.  **Robustness Check**: Ensure explicit error handling (try/catch, Error Boundaries) is present.
 
     ### STRICT ARCHITECTURAL PATTERNS
     For web applications, you **MUST** strictly adhere to **Feature-Sliced Design (FSD)**:
@@ -23,7 +24,10 @@ const getSystemInstruction = (isModification) => {
     
     ### CODING STANDARDS (NON-NEGOTIABLE)
     1.  **TypeScript**: Strict mode enabled. No \`any\`. Use Interfaces for everything.
-    2.  **Styling**: Tailwind CSS with \`clsx\` and \`tailwind-merge\`.
+    2.  **Defensive Programming**: 
+        - Validate all inputs.
+        - Wrap async calls in try/catch blocks.
+        - Handle undefined/null states gracefully.
     3.  **State**: Zustand for global state, React Query/SWR for async server state.
     4.  **Testing**: Every \`.ts/.tsx\` file in \`shared/lib\` or \`features\` MUST have a corresponding \`.test.ts\` file using Vitest.
     5.  **Icons**: Use \`lucide-react\`.

@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings } from './types';
 import { generateAppCode, runCodeSimulation, setupProject } from './services/geminiService';
+import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
 import PreviewPane from './components/PreviewPane';
@@ -38,8 +39,13 @@ const App: React.FC = () => {
   
   // Search History State
   const [searchHistory, setSearchHistory] = useState<string[]>(() => {
-      const saved = localStorage.getItem('omnigen_search_history');
-      return saved ? JSON.parse(saved) : [];
+      try {
+        const saved = localStorage.getItem('omnigen_search_history');
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        logger.error("Failed to load search history", e);
+        return [];
+      }
   });
 
   // View & Layout State
@@ -71,7 +77,11 @@ const App: React.FC = () => {
 
   // --- PERSISTENCE ---
   useEffect(() => {
-      localStorage.setItem('omnigen_search_history', JSON.stringify(searchHistory));
+      try {
+        localStorage.setItem('omnigen_search_history', JSON.stringify(searchHistory));
+      } catch (e) {
+        logger.error("Failed to save search history", e);
+      }
   }, [searchHistory]);
 
   // --- EFFECT: Sync Project Name to package.json ---
@@ -87,7 +97,7 @@ const App: React.FC = () => {
                     return { ...f, content: JSON.stringify(pkg, null, 2) };
                 }
             } catch (e) {
-                // Ignore JSON parse errors
+                logger.warn("Failed to parse package.json for renaming", e);
             }
         }
         return f;
@@ -163,14 +173,20 @@ const App: React.FC = () => {
         const newAttachments: Attachment[] = [];
         for (let i = 0; i < e.target.files.length; i++) {
             const file = e.target.files[i];
-            const isImage = file.type.startsWith('image/');
-            const content = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target?.result as string);
-                if (isImage) reader.readAsDataURL(file);
-                else reader.readAsText(file);
-            });
-            newAttachments.push({ name: file.name, type: file.type, content, isImage });
+            try {
+                const isImage = file.type.startsWith('image/');
+                const content = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target?.result as string);
+                    reader.onerror = reject;
+                    if (isImage) reader.readAsDataURL(file);
+                    else reader.readAsText(file);
+                });
+                newAttachments.push({ name: file.name, type: file.type, content, isImage });
+            } catch (err) {
+                logger.error(`Failed to read file ${file.name}`, err);
+                setError(`Failed to load attachment: ${file.name}`);
+            }
         }
         setLandingAttachments(prev => [...prev, ...newAttachments]);
     }
@@ -184,28 +200,29 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     
-    const scaffold = setupProject(settings.projectName);
-    setFiles(scaffold);
-
-    const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
-    setMessages([userMsg]);
-
     try {
-      const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, []);
-      setFiles(generatedFiles);
-      
-      setMessages(prev => [...prev, { role: 'model', text: "Project generated successfully.", timestamp: Date.now() }]);
+        const scaffold = setupProject(settings.projectName);
+        setFiles(scaffold);
 
-      if (generatedFiles.length > 0) {
-        const entry = generatedFiles.find(f => f.path === 'index.html') || generatedFiles[0];
-        setSelectedFile(entry);
-        if (generatedFiles.some(f => f.path === 'index.html')) setActiveTab('preview');
-      }
+        const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
+        setMessages([userMsg]);
+
+        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, []);
+        setFiles(generatedFiles);
+        
+        setMessages(prev => [...prev, { role: 'model', text: "Project generated successfully.", timestamp: Date.now() }]);
+
+        if (generatedFiles.length > 0) {
+            const entry = generatedFiles.find(f => f.path === 'index.html') || generatedFiles[0];
+            setSelectedFile(entry);
+            if (generatedFiles.some(f => f.path === 'index.html')) setActiveTab('preview');
+        }
     } catch (err: any) {
-      setError(err.message);
+        logger.error("Initial Generation Failed", err);
+        setError(err.message || "An unexpected error occurred during generation.");
     } finally {
-      setIsGenerating(false);
-      setPreviewKey(prev => prev + 1);
+        setIsGenerating(false);
+        setPreviewKey(prev => prev + 1);
     }
   };
 
@@ -227,7 +244,8 @@ const App: React.FC = () => {
 
           setMessages(prev => [...prev, { role: 'model', text: `Changes applied successfully.`, timestamp: Date.now() }]);
       } catch (err: any) {
-          setError(err.message);
+          logger.error("Conversation Generation Failed", err);
+          setError(err.message || "Failed to update project.");
           setMessages(prev => [...prev, { role: 'model', text: `Error: ${err.message}`, timestamp: Date.now() }]);
       } finally {
           setIsGenerating(false);
@@ -264,47 +282,57 @@ const App: React.FC = () => {
 
   // --- FILE SYSTEM OPERATIONS ---
   const handleRenameFile = (oldPath: string, newName: string, isFolder: boolean) => {
-    setFiles(prevFiles => {
-      const newFiles = prevFiles.map(file => {
-        if (isFolder) {
-           if (file.path.startsWith(oldPath + '/')) {
-               const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
-               const newFolderPath = parentPath ? `${parentPath}/${newName}` : newName;
-               return {
-                   ...file,
-                   path: file.path.replace(oldPath, newFolderPath)
-               };
-           }
-        } else {
-           if (file.path === oldPath) {
-               const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
-               const newPath = parentPath ? `${parentPath}/${newName}` : newName;
-               return { ...file, path: newPath };
-           }
+    try {
+        setFiles(prevFiles => {
+        const newFiles = prevFiles.map(file => {
+            if (isFolder) {
+            if (file.path.startsWith(oldPath + '/')) {
+                const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+                const newFolderPath = parentPath ? `${parentPath}/${newName}` : newName;
+                return {
+                    ...file,
+                    path: file.path.replace(oldPath, newFolderPath)
+                };
+            }
+            } else {
+            if (file.path === oldPath) {
+                const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+                const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+                return { ...file, path: newPath };
+            }
+            }
+            return file;
+        });
+        
+        if (selectedFile) {
+            const newSelected = newFiles.find(f => {
+                if (isFolder) return f.content === selectedFile.content && f.path.includes(newName); 
+                return f.content === selectedFile.content && f.path.endsWith(newName);
+            });
+            if(newSelected) setSelectedFile(newSelected);
         }
-        return file;
-      });
-      
-      if (selectedFile) {
-         const newSelected = newFiles.find(f => {
-             if (isFolder) return f.content === selectedFile.content && f.path.includes(newName); 
-             return f.content === selectedFile.content && f.path.endsWith(newName);
-         });
-         if(newSelected) setSelectedFile(newSelected);
-      }
 
-      return newFiles;
-    });
+        return newFiles;
+        });
+    } catch (e) {
+        logger.error("Rename failed", e);
+        setError("Failed to rename file.");
+    }
   };
 
   const handleDeleteFile = (path: string, isFolder: boolean) => {
-      const newFiles = files.filter(f => {
-          if (isFolder) return !f.path.startsWith(path + '/');
-          return f.path !== path;
-      });
-      setFiles(newFiles);
-      if (selectedFile && (selectedFile.path === path || (isFolder && selectedFile.path.startsWith(path + '/')))) {
-          setSelectedFile(null);
+      try {
+        const newFiles = files.filter(f => {
+            if (isFolder) return !f.path.startsWith(path + '/');
+            return f.path !== path;
+        });
+        setFiles(newFiles);
+        if (selectedFile && (selectedFile.path === path || (isFolder && selectedFile.path.startsWith(path + '/')))) {
+            setSelectedFile(null);
+        }
+      } catch (e) {
+          logger.error("Delete failed", e);
+          setError("Failed to delete file.");
       }
   };
 
@@ -321,8 +349,9 @@ const App: React.FC = () => {
           const output = await runCodeSimulation(files, command);
           const type = (output.toLowerCase().includes('error') || output.toLowerCase().includes('failed')) ? 'stderr' : 'stdout';
           setTerminalLogs(prev => [...prev, { type, content: output, timestamp: Date.now() }]);
-      } catch (e) {
-           setTerminalLogs(prev => [...prev, { type: 'stderr', content: "Simulation failed.", timestamp: Date.now() }]);
+      } catch (e: any) {
+           logger.error("Terminal command failed", e);
+           setTerminalLogs(prev => [...prev, { type: 'stderr', content: `Simulation failed: ${e.message}`, timestamp: Date.now() }]);
       } finally {
           setIsRunning(false);
       }
@@ -355,6 +384,7 @@ const App: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
+      logger.error("Zip export failed", e);
       alert("Failed to zip files");
     } finally {
       setIsDownloading(false);

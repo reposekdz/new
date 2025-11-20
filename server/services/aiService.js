@@ -28,25 +28,31 @@ const analyzeComplexity = (prompt) => {
 
 // --- HELPER: AUTO-HEALING JSON PARSER ---
 const parseHealedJson = (text) => {
-    try {
-        // Attempt direct parse
-        return JSON.parse(text);
-    } catch (e) {
-        // 1. Remove Markdown Code Blocks (```json ... ```)
-        let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        try { return JSON.parse(cleaned); } catch (e2) { /* continue */ }
+    if (!text) throw new Error("Empty response from AI");
 
-        // 2. Extract Array from Text using Regex (Greedy)
+    // 1. Remove Markdown Code Blocks
+    let cleaned = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+    // 2. Strip Single Line Comments (// ...) which are invalid in standard JSON
+    cleaned = cleaned.replace(/\/\/.*$/gm, '');
+
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        // 3. Extract Array from Text using Regex (Greedy)
         const match = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (match) {
             try { return JSON.parse(match[0]); } catch (e3) { /* continue */ }
         }
         
-        // 3. Attempt to fix common trailing comma issues
+        // 4. Attempt to fix common trailing comma issues
         cleaned = cleaned.replace(/,(\s*[\]}])/g, '$1');
         try { return JSON.parse(cleaned); } catch (e4) { /* continue */ }
 
-        console.error("Failed JSON Text:", text.substring(0, 200) + "...");
+        console.error("Failed JSON Text Preview:", text.substring(0, 500) + "...");
         throw new Error("Failed to parse JSON response from AI after multiple attempts.");
     }
 };
@@ -114,7 +120,6 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       const fileSummary = currentFiles.map(f => f.path).join(', ');
       promptContext += `Current Project Structure (${currentFiles.length} files): ${fileSummary}\n`;
       // Pass full content for small-medium projects, simplified for massive ones
-      // For this implementation, we pass all content to ensure high fidelity context
       promptContext += `Current File Contents:\n${JSON.stringify(currentFiles)}\n\n`;
   }
   
@@ -124,8 +129,8 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
   // Smart Model Selection
   const isComplex = analyzeComplexity(userPrompt);
-  // Upgrade to Pro if complex, unless user explicitly locked a model (logic handled in frontend, but here we ensure fallback)
   let effectiveModel = model;
+  
   if (isComplex && model === 'gemini-2.5-flash') {
       console.log("Complexity detected: Upgrading to Gemini 3.0 Pro Preview");
       effectiveModel = 'gemini-3-pro-preview';
@@ -145,9 +150,11 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       }
   }
 
-  // Retry Logic
+  // Retry Logic with Backoff
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
+        console.log(`[AI] Generating with ${effectiveModel} (Attempt ${attempt + 1})`);
+        
         const response = await ai.models.generateContent({
             model: effectiveModel,
             contents: { parts },
@@ -155,29 +162,30 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
                 systemInstruction,
                 responseMimeType: 'application/json',
                 // Pro model benefits from higher temp for architecture creativity
-                temperature: effectiveModel.includes('pro') ? 0.4 : 0.2,
+                // Increase temperature on retries to break specific loops
+                temperature: effectiveModel.includes('pro') ? 0.4 + (attempt * 0.1) : 0.2 + (attempt * 0.1),
                 topK: 40,
                 topP: 0.95,
             }
         });
 
         const text = response.text;
-        if (!text) throw new Error("Empty response from AI");
-
         let files = parseHealedJson(text);
 
         // Validate Structure
         if (!Array.isArray(files)) {
              if (files.files && Array.isArray(files.files)) files = files.files;
-             else throw new Error("Invalid JSON structure");
+             else throw new Error("Invalid JSON structure: Expected array of files");
         }
+
+        // Filter out invalid entries
+        files = files.filter(f => f && f.path && typeof f.content === 'string');
 
         // Merge Logic for Modifications
         if (isModification) {
             const updatedFilesMap = new Map(currentFiles.map(f => [f.path, f]));
             files.forEach(f => {
-                // Only add valid files
-                if (f.path && f.content) updatedFilesMap.set(f.path, f);
+                updatedFilesMap.set(f.path, f);
             });
             files = Array.from(updatedFilesMap.values());
         }
@@ -186,9 +194,11 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
       } catch (err) {
           console.error(`[Attempt ${attempt + 1}] Generation failed:`, err.message);
-          if (attempt === MAX_RETRIES) throw err;
+          if (attempt === MAX_RETRIES) throw new Error(`Failed after ${MAX_RETRIES} attempts: ${err.message}`);
+          
           // Exponential backoff
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          const delay = 1000 * Math.pow(2, attempt);
+          await new Promise(r => setTimeout(r, delay));
       }
   }
 };

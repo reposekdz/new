@@ -12,8 +12,18 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' })); // Allow large payloads for images/file contexts
 
+// Request Logger
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
 // Routes
-app.post('/api/generate', async (req, res) => {
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.post('/api/generate', async (req, res, next) => {
   try {
     const { prompt, model, attachments, currentFiles, history } = req.body;
     
@@ -31,20 +41,34 @@ app.post('/api/generate', async (req, res) => {
 
     res.json(generatedFiles);
   } catch (error) {
-    console.error("Generation Error:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    next(error);
   }
 });
 
-app.post('/api/execute', async (req, res) => {
+app.post('/api/execute', async (req, res, next) => {
   try {
     const { files, command } = req.body;
+    if (!files || !command) return res.status(400).send("Missing files or command");
+
     const output = await runSimulation(files, command);
     res.send(output);
   } catch (error) {
-    console.error("Execution Error:", error);
-    res.status(500).send(`[SYSTEM ERROR]: ${error.message}`);
+    next(error);
   }
+});
+
+// Centralized Error Handling
+app.use((err, req, res, next) => {
+    console.error("[SERVER ERROR]", err.stack);
+    
+    const status = err.status || 500;
+    const message = err.message || "Internal Server Error";
+    
+    res.status(status).json({
+        error: message,
+        timestamp: new Date().toISOString(),
+        path: req.url
+    });
 });
 
 // Start Server
