@@ -1,5 +1,5 @@
 
-import { GeneratedFile, AIModel, Attachment, ChatMessage, Platform, ProgrammingLanguage } from "../types";
+import { GeneratedFile, AIModel, Attachment, ChatMessage, Platform, ProgrammingLanguage, ThinkingLevel } from "../types";
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -10,7 +10,8 @@ export const generateAppCode = async (
   currentFiles: GeneratedFile[] = [],
   history: ChatMessage[] = [],
   platform: Platform = 'web',
-  language: ProgrammingLanguage = 'typescript'
+  language: ProgrammingLanguage = 'typescript',
+  thinkingLevel: ThinkingLevel = 'high'
 ): Promise<GeneratedFile[]> => {
   try {
     const response = await fetch(`${API_BASE}/generate`, {
@@ -23,7 +24,8 @@ export const generateAppCode = async (
         currentFiles,
         history,
         platform,
-        language
+        language,
+        thinkingLevel
       })
     });
 
@@ -45,7 +47,9 @@ export const generateCommitMessage = async (
 ): Promise<string> => {
     try {
         // We reuse the generate endpoint but with a specific prompt
-        const prompt = `Generate a Semantic Git Commit Message (Conventional Commits) for the following staged changes. Return ONLY the message string, no JSON, no markdown. Staged Files: ${stagedFiles.map(f => f.path).join(', ')}`;
+        // The backend system instruction forces a JSON array of files. 
+        // We ask the AI to wrap the commit message in a file named "COMMIT_MSG".
+        const prompt = `Generate a Semantic Git Commit Message (Conventional Commits) for the following staged changes. Create a file named "COMMIT_MSG" containing the commit message as its content. Staged Files: ${stagedFiles.map(f => f.path).join(', ')}`;
         
         const response = await fetch(`${API_BASE}/generate`, {
             method: 'POST',
@@ -57,25 +61,20 @@ export const generateCommitMessage = async (
                 currentFiles: allFiles, // Context for better messages
                 history: [],
                 platform: 'web',
-                language: 'typescript'
+                language: 'typescript',
+                thinkingLevel: 'low' // Fast
             })
         });
 
         if (!response.ok) return "chore: update files";
         const data = await response.json();
-        // The backend returns an array of files usually, but here we might get a file back OR we need to interpret the raw text if we changed the endpoint.
-        // Wait, generateApp returns GeneratedFile[]. 
-        // We actually need a text response. 
-        // Let's use a trick: The prompt asks for a commit message. 
-        // If the backend forces JSON array, we might need a separate endpoint or parse the 'text' property if we could access it.
-        // However, given the current backend structure, let's treat it as a file generation where we ask it to generate a file named "COMMIT_MSG".
         
         const commitMsgFile = data.find((f: any) => f.path === 'COMMIT_MSG');
         if (commitMsgFile) return commitMsgFile.content.trim();
         
-        // If it generated "files", we might just take the content of the first one if it looks like a message, or fallback.
-        // Actually, let's just assume we will add a 'text' field to the response in a future update, 
-        // BUT for now, let's rely on the fact that our prompt asks for a file.
+        // Fallback if no specific file found
+        if (data.length > 0 && data[0].content) return data[0].content.trim();
+
         return "feat: updates to project structure"; 
 
     } catch (e) {

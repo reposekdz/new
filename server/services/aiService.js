@@ -53,7 +53,7 @@ const parseHealedJson = (text) => {
     }
 };
 
-const generateApp = async ({ userPrompt, model, attachments = [], currentFiles = [], history = [], platform = 'web', language = 'typescript' }) => {
+const generateApp = async ({ userPrompt, model, attachments = [], currentFiles = [], history = [], platform = 'web', language = 'typescript', thinkingLevel = 'high' }) => {
   const isModification = currentFiles.length > 0 || history.length > 0;
   const systemInstruction = getSystemInstruction(isModification, platform, language);
   
@@ -75,11 +75,41 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
   const isComplex = analyzeComplexity(userPrompt);
   
-  // AGGRESSIVE UPGRADE: Always use Pro for creation/complex tasks to match "World Class" requirement
+  // Determine effective model and config
   let effectiveModel = model;
-  if (isComplex || !isModification) {
-      effectiveModel = 'gemini-3-pro-preview';
-      console.log("🚀 Upgrading to Gemini 3.0 Pro for World-Class Generation");
+  let thinkingBudget = 0;
+
+  // Map thinking levels to token budgets
+  const budgetMap = {
+      'low': 2048,
+      'medium': 8192,
+      'high': 16384,
+      'maximum': 32768
+  };
+  
+  const requestedBudget = budgetMap[thinkingLevel] || 16384;
+
+  // Strategy: Logic for model selection vs user preference
+  if (isComplex || thinkingLevel === 'maximum') {
+      // Force a model that supports deep reasoning
+      if (model.includes('2.5')) {
+          thinkingBudget = requestedBudget;
+      } else {
+          // If user selected Pro but wants maximum thinking, we might stick to Pro (it thinks differently) 
+          // OR swap to Flash 2.5 for the specific "Thinking" capability if Pro doesn't support thinking config yet.
+          // Assuming standard library guidelines: Thinking is primarily on 2.5 Flash/Lite/Pro.
+          // If user is on Pro 3, we trust its internal reasoning. 
+          // If user is on 2.5, we use the budget.
+          if (effectiveModel.includes('2.5')) {
+              thinkingBudget = requestedBudget;
+          }
+      }
+      if (thinkingLevel === 'maximum') {
+          console.log("🚀 SINGULARITY MODE ACTIVE: Max Thinking Budget");
+      }
+  } else {
+      // Standard reasoning
+      if (model.includes('2.5')) thinkingBudget = Math.min(4096, requestedBudget);
   }
 
   const parts = [{ text: promptContext }];
@@ -93,7 +123,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       }
   }
 
-  // MAXIMIZED THINKING BUDGET (SINGULARITY MODE)
+  // MAXIMIZED THINKING CONFIG
   const config = {
       systemInstruction,
       temperature: 0.7, 
@@ -101,15 +131,14 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       topP: 0.95,
   };
 
-  if (effectiveModel.includes('pro') || effectiveModel.includes('2.5')) {
-       // 32768 is the hard limit for the 2.5 Pro model. This provides maximum reasoning depth.
-       config.thinkingConfig = { thinkingBudget: 32768 }; 
-       console.log(`[AI] SINGULARITY MODE ACTIVE: Thinking Budget Maxed to 32,768`);
+  // Apply Thinking Config only for 2.5 models
+  if (effectiveModel.includes('2.5') && thinkingBudget > 0) {
+       config.thinkingConfig = { thinkingBudget }; 
   }
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        console.log(`[AI] Generating with ${effectiveModel} (Attempt ${attempt + 1})`);
+        console.log(`[AI] Generating with ${effectiveModel} (Level: ${thinkingLevel}, Budget: ${thinkingBudget}) - Attempt ${attempt + 1}`);
         
         const response = await ai.models.generateContent({
             model: effectiveModel,

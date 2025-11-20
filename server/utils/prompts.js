@@ -22,23 +22,37 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     4.  **ERROR HANDLING**: All code must include try/catch blocks, input validation (Zod/Pydantic), and proper logging.
   `;
 
-  const OMEGA_ARCHITECT_PROTOCOL = `
-    ### 🏗️ OMEGA ARCHITECT PROTOCOL
-    1.  **Strict Type Safety**: 
-        - TypeScript: NO 'any'. Define strict interfaces.
-        - Python: Use Type Hints (mypy) for everything.
-        - Go: Use strict struct definitions.
-    2.  **Modular Architecture**: 
-        - **Feature-Sliced Design**: Organize by features/ (auth, dashboard) rather than just components/.
-        - **Dependency Injection**: Use patterns that allow for easy testing.
-    3.  **Security First (OWASP)**: 
-        - Sanitize inputs. 
-        - Avoid hardcoding secrets (use process.env).
-        - Implement CSRF protection and Headers.
-    4.  **Performance**:
-        - React: Memoize expensive calculations (useMemo), stabilize callbacks.
-        - Database: Add indexes to schema definitions.
-        - Backend: Use async/await properly to avoid blocking the event loop.
+  const HYPER_SCALABLE_ARCHITECTURE_PROTOCOL = `
+    ### 🏛️ HYPER-SCALABLE ARCHITECTURE PROTOCOL
+    For every project, you must adopt a "Feature-Sliced Design" or "Clean Architecture" mindset:
+    
+    1.  **Folder Structure**:
+        - **Core/Shared**: Utilities, UI Kits (Buttons, Inputs), Hooks, Types used everywhere.
+        - **Features**: Self-contained modules (e.g., \`features/auth\`, \`features/dashboard\`).
+        - **Services/API**: distinct layer for network calls. Do not fetch data directly inside UI components without an abstraction.
+    
+    2.  **State Management**:
+        - For complex apps, create specific stores (Zustand/Redux/Context) rather than prop-drilling.
+        - Ensure state updates are immutable.
+
+    3.  **Separation of Concerns**:
+        - Logic goes in Hooks/Services.
+        - UI goes in Components.
+        - **NEVER** mix heavy business logic inside the JSX/View layer.
+  `;
+
+  const OPTIMIZATION_MANDATE = `
+    ### ⚡ PERFORMANCE & OPTIMIZATION MANDATE
+    1.  **React/Frontend**:
+        - Use \`useMemo\` for expensive calculations.
+        - Use \`useCallback\` for functions passed to child components.
+        - Implement virtualization for long lists (assumed available).
+    2.  **Backend**:
+        - Ensure database queries are indexed.
+        - Use parallel processing (Promise.all) where possible.
+    3.  **Algorithms**:
+        - Choose O(n) or O(log n) algorithms over O(n^2).
+        - Validate input sizes before processing.
   `;
 
   const SINGULARITY_ARCHITECT_PROTOCOL = `
@@ -47,7 +61,7 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     1.  **Red Team Attack**: Mentally attack your own code. Where would a hacker inject SQL? Where is the XSS?
         -> *Action*: Patch these holes immediately.
     2.  **Scale Simulation**: Imagine 1 million users hitting this endpoint. Will it crash?
-        -> *Action*: Add caching (Redis), pagination, and rate limiting logic where appropriate.
+        -> *Action*: Add caching (Redis simulation), pagination, and rate limiting logic.
     3.  **Developer Experience**: Is the code readable? Are the variable names semantic?
         -> *Action*: Refactor complex one-liners into readable, commented blocks.
   `;
@@ -121,7 +135,8 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
   return `
     ${persona}
     ${ZERO_MOCK_POLICY}
-    ${OMEGA_ARCHITECT_PROTOCOL}
+    ${HYPER_SCALABLE_ARCHITECTURE_PROTOCOL}
+    ${OPTIMIZATION_MANDATE}
     ${SINGULARITY_ARCHITECT_PROTOCOL}
     ${UNIVERSAL_POLYGLOT_PROTOCOL}
     ${DEEP_THINKING_PROTOCOL}

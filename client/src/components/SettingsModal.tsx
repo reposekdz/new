@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { X, Settings, Cpu, Type, Save, Zap, Box, Smartphone, Monitor, Globe, Code2, Keyboard } from 'lucide-react';
-import { AppSettings, Platform, ProgrammingLanguage } from '../types';
+import { X, Settings, Cpu, Type, Save, Zap, Box, Smartphone, Monitor, Globe, Code2, Keyboard, Brain, Gauge } from 'lucide-react';
+import { AppSettings, Platform, ProgrammingLanguage, ThinkingLevel } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +12,10 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings }) => {
   if (!isOpen) return null;
+
+  const handleThinkingChange = (level: ThinkingLevel) => {
+      onUpdateSettings({ ...settings, thinkingLevel: level });
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
@@ -31,7 +35,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
           
           {/* Project Name */}
           <div className="space-y-2">
@@ -45,22 +49,47 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             />
           </div>
 
-          {/* AI Model Dropdown */}
-          <div className="space-y-2">
-             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
-                <Cpu size={14} /> Intelligence Engine
-             </label>
-             <select
-                value={settings.model}
-                onChange={(e) => onUpdateSettings({ ...settings, model: e.target.value as any })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/50"
-             >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast & Efficient)</option>
-                <option value="gemini-3-pro-preview">Gemini 3.0 Pro (Deep Reasoning Architect)</option>
-             </select>
-             <p className="text-[10px] text-zinc-500 px-1">
-                Select 3.0 Pro for complex architectures like Microservices or React Native.
-             </p>
+          {/* AI Model & Reasoning Power */}
+          <div className="space-y-4 bg-zinc-900/30 p-4 rounded-xl border border-zinc-800">
+             <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
+                    <Cpu size={14} /> Intelligence Engine
+                </label>
+                <select
+                    value={settings.model}
+                    onChange={(e) => onUpdateSettings({ ...settings, model: e.target.value as any })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/50"
+                >
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast & Efficient)</option>
+                    <option value="gemini-3-pro-preview">Gemini 3.0 Pro (Deep Reasoning Architect)</option>
+                </select>
+             </div>
+
+             <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center justify-between">
+                    <div className="flex items-center gap-2"><Brain size={14} className="text-purple-400"/> Reasoning Power</div>
+                    <span className="text-indigo-400 font-bold text-[10px] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{settings.thinkingLevel?.toUpperCase() || 'HIGH'}</span>
+                </label>
+                
+                <div className="grid grid-cols-4 gap-2">
+                    {(['low', 'medium', 'high', 'maximum'] as ThinkingLevel[]).map(level => (
+                        <button
+                            key={level}
+                            onClick={() => handleThinkingChange(level)}
+                            className={`text-xs py-2 rounded-md border transition-all ${
+                                settings.thinkingLevel === level
+                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:bg-zinc-800'
+                            }`}
+                        >
+                            {level.charAt(0).toUpperCase() + level.slice(1)}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 px-1 leading-tight">
+                    <strong className="text-zinc-400">Maximum</strong> enables "Singularity Mode" (32k token budget) for self-healing architecture and security verification. Slower but smarter.
+                </p>
+             </div>
           </div>
 
           {/* Defaults */}

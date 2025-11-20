@@ -18,7 +18,9 @@ import {
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
   Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Server, GitBranch, 
-  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi, GitCommit, GitCompare, UploadCloud
+  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi, GitCommit, GitCompare, UploadCloud,
+  // Fix: Added Brain to imports
+  Brain
 } from 'lucide-react';
 
 const TEMPLATES: ProjectTemplate[] = [
@@ -65,7 +67,8 @@ const App: React.FC = () => {
       defaultLanguage: 'typescript',
       editorFontSize: 14,
       autoSave: true,
-      vimMode: false
+      vimMode: false,
+      thinkingLevel: 'high'
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -222,38 +225,47 @@ const App: React.FC = () => {
 
       const filesArray: GeneratedFile[] = [];
       
-      // Helper: Check if file is binary/image to skip text reading or handle differently
+      // Helper: Check if file is binary/image to skip text reading
       const isBinary = (filename: string) => {
-          return /\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar|pyc|o|a)$/i.test(filename);
+          return /\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar|pyc|o|a|DS_Store)$/i.test(filename);
       };
 
-      // Helper: Traverse FileSystemEntry
+      // Recursive Folder Traversal
       const traverseFileTree = async (item: any, path = "") => {
           if (item.isFile) {
-             if (item.name.startsWith('.')) return; // Skip hidden system files like .DS_Store
-             const file = await new Promise<File>((resolve, reject) => item.file(resolve, reject));
+             if (item.name.startsWith('.')) return; // Skip hidden system files
              
-             // Skip node_modules, .git, etc if they slipped in
-             if (path.includes('node_modules') || path.includes('.git')) return;
+             // Skip specific directories even if they are files inside them
+             if (path.includes('node_modules') || path.includes('.git') || path.includes('dist') || path.includes('build')) return;
              
-             if (isBinary(file.name)) {
-                 // For now, we skip binaries to save memory or we could read as base64 if needed
-                 // Let's skip them for the code editor context
-                 return;
-             }
+             if (isBinary(item.name)) return; // Skip binaries for this text-based IDE
 
+             const file = await new Promise<File>((resolve, reject) => item.file(resolve, reject));
              const content = await new Promise<string>((resolve) => {
                  const reader = new FileReader();
                  reader.onload = (e) => resolve(e.target?.result as string || "");
                  reader.readAsText(file);
              });
-             filesArray.push({ path: path + file.name, content });
+             filesArray.push({ path: path + item.name, content });
           } else if (item.isDirectory) {
-             if (['node_modules', '.git', 'dist', 'build'].includes(item.name)) return;
+             if (['node_modules', '.git', 'dist', 'build', '__pycache__', '.vscode', '.idea'].includes(item.name)) return;
+             
              const dirReader = item.createReader();
              const entries = await new Promise<any[]>((resolve) => {
-                 dirReader.readEntries(resolve);
+                 const allEntries: any[] = [];
+                 const read = () => {
+                    dirReader.readEntries((results: any[]) => {
+                        if (results.length > 0) {
+                            allEntries.push(...results);
+                            read(); // Continue reading until empty
+                        } else {
+                            resolve(allEntries);
+                        }
+                    });
+                 };
+                 read();
              });
+             
              for (const entry of entries) {
                  await traverseFileTree(entry, path + item.name + "/");
              }
@@ -265,16 +277,13 @@ const App: React.FC = () => {
           for (let i = 0; i < items.length; i++) {
               const item = items[i].webkitGetAsEntry();
               if (item) {
-                  // If user dropped a folder, item.name is folder name. 
-                  // If dropped file, item.name is filename.
-                  // We treat the drop root as root of project if single folder, or mix.
                   promises.push(traverseFileTree(item, ""));
               }
           }
           await Promise.all(promises);
 
           if (filesArray.length > 0) {
-              // Flatten paths if single root folder dropped
+              // If single root folder dropped, strip its name from path to make it root
               // e.g. dropped "my-app" -> "my-app/src/index.ts" -> "src/index.ts"
               const rootDirs = new Set(filesArray.map(f => f.path.split('/')[0]));
               if (rootDirs.size === 1 && items.length === 1 && items[0].webkitGetAsEntry()?.isDirectory) {
@@ -284,24 +293,24 @@ const App: React.FC = () => {
                   });
               }
 
+              // Merge with existing files
               setFiles(prev => {
-                  // Merge logic: overwrite existing paths
                   const newFilesMap = new Map(prev.map(f => [f.path, f]));
                   filesArray.forEach(f => newFilesMap.set(f.path, f));
                   return Array.from(newFilesMap.values());
               });
 
               handleGitInit(filesArray); // Re-init or add to git
-              setMessages(prev => [...prev, { role: 'model', text: `Imported ${filesArray.length} files via drag & drop.`, timestamp: Date.now() }]);
+              setMessages(prev => [...prev, { role: 'model', text: `Singularity Import: Analyzed and loaded ${filesArray.length} source files.`, timestamp: Date.now() }]);
               
               // Open first relevant file
-              const entry = filesArray.find(f => f.path === 'package.json' || f.path.endsWith('index.html') || f.path.endsWith('App.tsx'));
+              const entry = filesArray.find(f => f.path === 'package.json' || f.path.endsWith('index.html') || f.path.endsWith('App.tsx') || f.path.endsWith('main.py'));
               if (entry) setSelectedFile(entry);
           } else {
-              setError("No valid text files found in drop.");
+              setError("No valid source code found in dropped folder.");
           }
       } catch (err: any) {
-          setError(`Drop failed: ${err.message}`);
+          setError(`Import failed: ${err.message}`);
       } finally {
           setIsGenerating(false);
       }
@@ -398,7 +407,7 @@ const App: React.FC = () => {
         const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
         setMessages([userMsg]);
 
-        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], platform, language);
+        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], platform, language, settings.thinkingLevel);
         setFiles(generatedFiles);
         
         // Auto-init Git
@@ -428,7 +437,7 @@ const App: React.FC = () => {
       setMessages(prev => [...prev, userMsg]);
 
       try {
-          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, platform, language);
+          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, platform, language, settings.thinkingLevel);
           setFiles(updatedFiles);
           
           if (selectedFile) {
@@ -690,7 +699,7 @@ const App: React.FC = () => {
         {isDragging && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-indigo-500/20 backdrop-blur-sm border-4 border-indigo-500 border-dashed m-4 rounded-3xl animate-pulse">
                 <div className="flex flex-col items-center text-white">
-                    <UploadCloud size={64} className="mb-4" />
+                    <UploadCloud size={48} className="mb-4" />
                     <span className="text-2xl font-bold">Drop project folder here</span>
                     <span className="text-zinc-300">OmniGen will analyze and import the codebase</span>
                 </div>
@@ -955,6 +964,9 @@ const App: React.FC = () => {
              </div>
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
                  <span>{selectedFile ? language.toUpperCase() : 'TXT'}</span>
+             </div>
+             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
+                 <Brain size={10} /> {settings.thinkingLevel.toUpperCase()}
              </div>
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
                  <Wifi size={10} /> OmniGen Server

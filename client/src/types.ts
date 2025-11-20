@@ -10,6 +10,7 @@ export type Platform = 'web' | 'mobile' | 'desktop';
 export type ProgrammingLanguage = 
   | 'javascript' | 'typescript' | 'python' | 'rust' | 'go' | 'java' | 'csharp' 
   | 'cpp' | 'php' | 'swift' | 'kotlin' | 'ruby' | 'html/css';
+export type ThinkingLevel = 'low' | 'medium' | 'high' | 'maximum';
 
 export interface Attachment {
   name: string;
@@ -33,6 +34,7 @@ export interface AppSettings {
   editorFontSize: number;
   autoSave: boolean;
   vimMode: boolean;
+  thinkingLevel: ThinkingLevel;
 }
 
 export interface AppState {
