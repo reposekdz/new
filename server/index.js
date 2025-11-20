@@ -4,6 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const { generateApp, runSimulation } = require('./services/aiService');
+const { fetchGithubRepo } = require('./services/githubService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,6 +56,18 @@ app.post('/api/execute', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/import/github', async (req, res, next) => {
+    try {
+        const { repoUrl } = req.body;
+        if (!repoUrl) return res.status(400).json({ error: "Repository URL is required" });
+
+        const files = await fetchGithubRepo(repoUrl);
+        res.json(files);
+    } catch (error) {
+        next(error);
+    }
 });
 
 // Centralized Error Handling

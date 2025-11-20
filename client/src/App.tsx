@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings } from './types';
-import { generateAppCode, runCodeSimulation, setupProject } from './services/geminiService';
+import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo } from './services/geminiService';
 import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
@@ -13,7 +13,8 @@ import JSZip from 'jszip';
 import { 
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
-  FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings
+  FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
+  Github, FolderUp, Keyboard, Command
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -48,6 +49,17 @@ const App: React.FC = () => {
       }
   });
 
+  // Landing View State
+  const [landingTab, setLandingTab] = useState<'new' | 'github' | 'folder'>('new');
+  const [githubUrl, setGithubUrl] = useState("");
+  const [landingPrompt, setLandingPrompt] = useState("");
+  const [landingAttachments, setLandingAttachments] = useState<Attachment[]>([]);
+  
+  // Refs
+  const landingFileRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
   // View & Layout State
   const [viewMode, setViewMode] = useState<'code' | 'split' | 'preview'>('split');
   const [showChat, setShowChat] = useState(true);
@@ -59,17 +71,13 @@ const App: React.FC = () => {
   const [splitPos, setSplitPos] = useState(50); 
   
   // Resizing Refs
-  const workspaceRef = useRef<HTMLDivElement>(null);
   const isResizingSidebar = useRef(false);
   const isResizingChat = useRef(false);
   const isResizingSplit = useRef(false);
 
   // Conversational State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [landingPrompt, setLandingPrompt] = useState("");
-  const [landingAttachments, setLandingAttachments] = useState<Attachment[]>([]);
-  const landingFileRef = useRef<HTMLInputElement>(null);
-
+  
   // Terminal State
   const [activeTab, setActiveTab] = useState<'preview' | 'terminal'>('preview');
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
@@ -191,6 +199,91 @@ const App: React.FC = () => {
         setLandingAttachments(prev => [...prev, ...newAttachments]);
     }
     if (landingFileRef.current) landingFileRef.current.value = '';
+  };
+
+  const handleFolderImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+
+      setIsGenerating(true);
+      setHasStarted(true);
+      
+      const filesArray: GeneratedFile[] = [];
+      const IGNORED = ['.git', 'node_modules', 'dist', 'build', 'coverage', '.DS_Store'];
+      
+      try {
+          for (let i = 0; i < e.target.files.length; i++) {
+              const file = e.target.files[i];
+              const path = (file.webkitRelativePath || file.name);
+              
+              // Simple Ignore Filter
+              if (IGNORED.some(ignore => path.includes(ignore))) continue;
+              
+              // Skip binary files roughly by extension
+              if (path.match(/\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar)$/i)) continue;
+
+              const content = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = (e) => resolve(e.target?.result as string || "");
+                  reader.readAsText(file);
+              });
+
+              filesArray.push({ path, content });
+          }
+
+          setFiles(filesArray);
+          
+          // Add context message
+          const contextMsg: ChatMessage = {
+               role: 'model',
+               text: `Successfully imported ${filesArray.length} files from local folder. I have analyzed the structure. How can I help you?`,
+               timestamp: Date.now()
+          };
+          setMessages([contextMsg]);
+          
+          if (filesArray.length > 0) {
+              const entry = filesArray.find(f => f.path.endsWith('index.html') || f.path.endsWith('App.tsx') || f.path.endsWith('main.py')) || filesArray[0];
+              setSelectedFile(entry);
+              if (filesArray.some(f => f.path.endsWith('index.html'))) setActiveTab('preview');
+          }
+
+      } catch (err: any) {
+          logger.error("Folder Import Failed", err);
+          setError("Failed to import folder: " + err.message);
+          setHasStarted(false);
+      } finally {
+          setIsGenerating(false);
+      }
+  };
+
+  const handleGithubImport = async () => {
+      if (!githubUrl.trim()) return;
+      
+      setIsGenerating(true);
+      setHasStarted(true);
+      setError(null);
+
+      try {
+          const importedFiles = await importGithubRepo(githubUrl);
+          setFiles(importedFiles);
+          
+          const contextMsg: ChatMessage = {
+               role: 'model',
+               text: `Successfully cloned repository from ${githubUrl}. Loaded ${importedFiles.length} files.`,
+               timestamp: Date.now()
+          };
+          setMessages([contextMsg]);
+
+          if (importedFiles.length > 0) {
+              const entry = importedFiles.find(f => f.path.endsWith('index.html') || f.path.endsWith('README.md')) || importedFiles[0];
+              setSelectedFile(entry);
+          }
+      } catch (err: any) {
+          logger.error("GitHub Import Failed", err);
+          setError(err.message);
+          setHasStarted(false); // Go back to landing
+      } finally {
+          setIsGenerating(false);
+      }
   };
 
   const handleInitialGenerate = async () => {
@@ -408,58 +501,150 @@ const App: React.FC = () => {
             OmniGen
           </h1>
           <p className="text-lg text-zinc-400 mb-10 max-w-xl leading-relaxed">
-            The universal AI software architect. Describe any application, and watch it build instantly.
+            The universal AI software architect. Build new apps, or import existing ones.
           </p>
 
-          <div className="w-full bg-[#18181b] border border-zinc-800 rounded-xl p-2 shadow-2xl backdrop-blur-xl relative group focus-within:border-indigo-500/50 transition-all duration-300">
-             {/* Attachments List */}
-            {landingAttachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
-                    {landingAttachments.map((att, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-zinc-800/80 text-zinc-200 text-xs px-2 py-1 rounded-md border border-zinc-700">
-                            {att.isImage ? <ImageIcon size={12} className="text-purple-400"/> : <FileText size={12} className="text-blue-400"/>}
-                            <span className="max-w-[120px] truncate">{att.name}</span>
-                            <button onClick={() => setLandingAttachments(prev => prev.filter((_, i) => i !== idx))} className="hover:text-red-400"><X size={12}/></button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            <textarea 
-              value={landingPrompt}
-              onChange={(e) => setLandingPrompt(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
-              placeholder="Describe your dream application... (e.g., 'A Snake game in Python' or 'A React Landing Page')"
-              className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
-            />
-            
-            <div className="flex items-center justify-between px-4 pb-2">
-              <div className="flex items-center gap-3">
-                 <select 
-                    value={settings.model}
-                    onChange={(e) => setSettings({ ...settings, model: e.target.value as AIModel })}
-                    className="bg-zinc-900 border border-zinc-800 text-xs rounded-md px-2 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors"
+          {/* --- INTERACTIVE INPUT AREA --- */}
+          <div className="w-full bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden relative group focus-within:border-indigo-500/50 transition-all duration-300">
+             
+             {/* TABS */}
+             <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50">
+                 <button 
+                    onClick={() => setLandingTab('new')}
+                    className={`flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 transition-colors ${landingTab === 'new' ? 'bg-zinc-800 text-white border-b-2 border-indigo-500' : 'text-zinc-500 hover:text-zinc-300'}`}
                  >
-                    <option value="gemini-2.5-flash">⚡ Flash (Speed)</option>
-                    <option value="gemini-3-pro-preview">🧠 Pro (Logic)</option>
-                 </select>
-                 <div className="relative group/attach">
-                     <input type="file" multiple className="hidden" ref={landingFileRef} onChange={handleLandingFileSelect} />
-                     <button onClick={() => landingFileRef.current?.click()} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-all">
-                        <Paperclip size={18} />
-                     </button>
-                 </div>
-              </div>
-              <button 
-                onClick={handleInitialGenerate}
-                disabled={!landingPrompt.trim() && landingAttachments.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
-              >
-                <span>Generate</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
+                    <Sparkles size={14} /> New Project
+                 </button>
+                 <button 
+                    onClick={() => setLandingTab('github')}
+                    className={`flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 transition-colors ${landingTab === 'github' ? 'bg-zinc-800 text-white border-b-2 border-indigo-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                 >
+                    <Github size={14} /> Import GitHub
+                 </button>
+                 <button 
+                    onClick={() => setLandingTab('folder')}
+                    className={`flex-1 py-3 text-xs font-medium flex items-center justify-center gap-2 transition-colors ${landingTab === 'folder' ? 'bg-zinc-800 text-white border-b-2 border-indigo-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                 >
+                    <FolderUp size={14} /> Import Folder
+                 </button>
+             </div>
+
+             {/* CONTENT AREAS */}
+             <div className="p-2">
+                
+                {/* 1. NEW PROJECT */}
+                {landingTab === 'new' && (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {landingAttachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+                                {landingAttachments.map((att, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-zinc-800/80 text-zinc-200 text-xs px-2 py-1 rounded-md border border-zinc-700 animate-in zoom-in duration-200">
+                                        {att.isImage ? <ImageIcon size={12} className="text-purple-400"/> : <FileText size={12} className="text-blue-400"/>}
+                                        <span className="max-w-[120px] truncate">{att.name}</span>
+                                        <button onClick={() => setLandingAttachments(prev => prev.filter((_, i) => i !== idx))} className="hover:text-red-400"><X size={12}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <textarea 
+                            value={landingPrompt}
+                            onChange={(e) => setLandingPrompt(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
+                            placeholder="Describe your dream application... (e.g., 'A Snake game in Python' or 'A React Landing Page')"
+                            className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
+                        />
+                        <div className="flex items-center justify-between px-4 pb-2">
+                            <div className="flex items-center gap-3">
+                                <select 
+                                    value={settings.model}
+                                    onChange={(e) => setSettings({...settings, model: e.target.value as AIModel})}
+                                    className="bg-zinc-900 border border-zinc-800 text-xs rounded-md px-2 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors"
+                                >
+                                    <option value="gemini-2.5-flash">⚡ Flash (Speed)</option>
+                                    <option value="gemini-3-pro-preview">🧠 Pro (Logic)</option>
+                                </select>
+                                <div className="relative group/attach">
+                                    <input type="file" multiple className="hidden" ref={landingFileRef} onChange={handleLandingFileSelect} />
+                                    <button onClick={() => landingFileRef.current?.click()} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-all" title="Attach Images/Files">
+                                        <Paperclip size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleInitialGenerate}
+                                disabled={!landingPrompt.trim() && landingAttachments.length === 0}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
+                            >
+                                <span>Generate</span>
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 2. GITHUB IMPORT */}
+                {landingTab === 'github' && (
+                    <div className="p-6 flex flex-col items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 min-h-[160px]">
+                        <div className="w-full max-w-md relative">
+                            <Github size={18} className="absolute left-3 top-3 text-zinc-500" />
+                            <input 
+                                type="text" 
+                                value={githubUrl}
+                                onChange={(e) => setGithubUrl(e.target.value)}
+                                placeholder="https://github.com/username/repository"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600"
+                            />
+                        </div>
+                        <button 
+                             onClick={handleGithubImport}
+                             disabled={!githubUrl}
+                             className="bg-zinc-100 hover:bg-white text-zinc-900 px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Download size={16} />}
+                            Clone Repository
+                        </button>
+                        <p className="text-[10px] text-zinc-500">Supports public repositories. Large repos may take a moment.</p>
+                    </div>
+                )}
+
+                {/* 3. FOLDER IMPORT */}
+                {landingTab === 'folder' && (
+                    <div className="p-6 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-2 duration-300 min-h-[160px]">
+                        <div 
+                            className="border-2 border-dashed border-zinc-800 rounded-xl p-8 w-full text-center hover:bg-zinc-900/30 hover:border-zinc-700 transition-all cursor-pointer"
+                            onClick={() => folderInputRef.current?.click()}
+                        >
+                             <FolderUp size={32} className="mx-auto text-zinc-600 mb-2" />
+                             <p className="text-sm text-zinc-300 font-medium">Click to select a folder</p>
+                             <p className="text-[10px] text-zinc-500 mt-1">Your files stay local until processed</p>
+                             {/* webkitdirectory attribute is non-standard but works in most browsers */}
+                             <input 
+                                type="file" 
+                                ref={folderInputRef}
+                                onChange={handleFolderImport}
+                                className="hidden"
+                                {...{ webkitdirectory: "", directory: "" } as any}
+                                multiple
+                             />
+                        </div>
+                    </div>
+                )}
+
+             </div>
           </div>
+          
+          {/* Hint Section */}
+          <div className="mt-8 flex gap-6 text-xs text-zinc-500">
+               <div className="flex items-center gap-2">
+                   <Keyboard size={12} />
+                   <span><span className="text-zinc-300">Ctrl+Enter</span> to submit</span>
+               </div>
+               <div className="flex items-center gap-2">
+                   <Command size={12} />
+                   <span><span className="text-zinc-300">/fix</span> to debug</span>
+               </div>
+          </div>
+
         </div>
       </div>
      );
@@ -479,7 +664,7 @@ const App: React.FC = () => {
       {/* === HEADER === */}
       <header className="h-12 border-b border-zinc-800 flex items-center px-4 gap-4 bg-[#09090b] shrink-0 z-20 justify-between select-none">
         <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setHasStarted(false); setFiles([]); }}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setHasStarted(false); setFiles([]); setMessages([]); }}>
                 <div className="w-6 h-6 bg-indigo-600 rounded flex items-center justify-center shadow-lg shadow-indigo-500/20">
                     <Sparkles size={14} className="text-white" />
                 </div>

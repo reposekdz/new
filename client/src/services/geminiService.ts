@@ -50,6 +50,25 @@ export const runCodeSimulation = async (files: GeneratedFile[], command: string)
   }
 };
 
+export const importGithubRepo = async (repoUrl: string): Promise<GeneratedFile[]> => {
+    try {
+        const response = await fetch(`${API_BASE}/import/github`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repoUrl })
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "Failed to import GitHub repository");
+        }
+        return await response.json();
+    } catch (error: any) {
+        console.error("GitHub Import Error:", error);
+        throw new Error(error.message || "Failed to import GitHub repository");
+    }
+};
+
 /**
  * Generates initial project scaffolding (package.json, .gitignore, Tests)
  * This runs client-side to provide instant feedback before the AI response.
