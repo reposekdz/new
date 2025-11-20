@@ -81,7 +81,7 @@ const App: React.FC = () => {
         }
         return f;
     }));
-  }, [settings.projectName]); // Dependency on project name setting
+  }, [settings.projectName]); 
 
   // --- MOUSE EVENTS FOR RESIZING ---
   useEffect(() => {
@@ -238,6 +238,60 @@ const App: React.FC = () => {
     setFiles(updatedFiles);
     setSelectedFile({ ...selectedFile, content: newContent });
   };
+
+  // --- FILE SYSTEM OPERATIONS ---
+  const handleRenameFile = (oldPath: string, newName: string, isFolder: boolean) => {
+    setFiles(prevFiles => {
+      const newFiles = prevFiles.map(file => {
+        if (isFolder) {
+           // If renaming 'src/components' to 'src/ui', 
+           // 'src/components/Button.tsx' becomes 'src/ui/Button.tsx'
+           if (file.path.startsWith(oldPath + '/')) {
+               // Calculate parent path of the folder
+               const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+               const newFolderPath = parentPath ? `${parentPath}/${newName}` : newName;
+               return {
+                   ...file,
+                   path: file.path.replace(oldPath, newFolderPath)
+               };
+           }
+        } else {
+           if (file.path === oldPath) {
+               const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+               const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+               return { ...file, path: newPath };
+           }
+        }
+        return file;
+      });
+      
+      // Update selected file if it was renamed (or inside renamed folder)
+      if (selectedFile) {
+         const newSelected = newFiles.find(f => {
+             if (isFolder) {
+                 return f.content === selectedFile.content && f.path.includes(newName); // Heuristic
+             }
+             return f.content === selectedFile.content && f.path.endsWith(newName);
+         });
+         // Better: track index or just fallback
+         if(newSelected) setSelectedFile(newSelected);
+      }
+
+      return newFiles;
+    });
+  };
+
+  const handleDeleteFile = (path: string, isFolder: boolean) => {
+      const newFiles = files.filter(f => {
+          if (isFolder) return !f.path.startsWith(path + '/');
+          return f.path !== path;
+      });
+      setFiles(newFiles);
+      if (selectedFile && (selectedFile.path === path || (isFolder && selectedFile.path.startsWith(path + '/')))) {
+          setSelectedFile(null);
+      }
+  };
+
 
   const handleTerminalCommand = async (command: string) => {
       setTerminalLogs(prev => [...prev, { type: 'command', content: command, timestamp: Date.now() }]);
@@ -470,7 +524,14 @@ const App: React.FC = () => {
                         <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded py-1 pl-7 pr-2 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/50 transition-colors" />
                     </div>
                  </div>
-                <FileExplorer files={files} selectedFile={selectedFile} onSelectFile={setSelectedFile} searchQuery={searchQuery} />
+                <FileExplorer 
+                    files={files} 
+                    selectedFile={selectedFile} 
+                    onSelectFile={setSelectedFile} 
+                    onRename={handleRenameFile}
+                    onDelete={handleDeleteFile}
+                    searchQuery={searchQuery} 
+                />
                  <div 
                     className="absolute right-[-2px] top-0 bottom-0 w-1 cursor-col-resize z-50 hover:bg-indigo-500 transition-colors delay-150"
                     onMouseDown={() => { isResizingSidebar.current = true; document.body.style.cursor = 'col-resize'; }}
@@ -559,7 +620,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="h-6 bg-[#09090b] border-t border-zinc-800 flex items-center px-4 text-[10px] text-zinc-500 justify-between shrink-0 select-none z-20">
         <div className="flex gap-3">
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> OmniGen v2.5</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> OmniGen v3.0 Pro</span>
             {files.length > 0 && <span>• {files.length} files</span>}
             <span>• {settings.model}</span>
         </div>

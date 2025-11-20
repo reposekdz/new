@@ -112,17 +112,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
             </button>
             
             {showAiMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2">
-                    <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
+                    <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
                         <FileSearch size={14} className="text-blue-400"/> Explain Code
                     </button>
-                    <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
-                        <Sparkles size={14} className="text-purple-400"/> Refactor & Optimize
+                    <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
+                        <Sparkles size={14} className="text-purple-400"/> Refactor
                     </button>
-                    <button onClick={() => handleAction('debug')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                    <button onClick={() => handleAction('debug')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
                         <Bug size={14} className="text-red-400"/> Find Bugs
                     </button>
-                    <button onClick={() => handleAction('comments')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left">
+                    <button onClick={() => handleAction('comments')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
                         <MessageSquarePlus size={14} className="text-green-400"/> Add Comments
                     </button>
                 </div>

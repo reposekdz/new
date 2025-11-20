@@ -1,22 +1,24 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GeneratedFile } from '../types';
 import { 
   File, FileJson, FileCode, FileType2, Folder, FolderOpen, 
   ChevronDown, ChevronRight, Image as ImageIcon, Music, 
-  Database, Settings, Terminal, Layout
+  Database, Settings, Terminal, Layout, Edit2, Trash2, MoreVertical
 } from 'lucide-react';
 
 interface FileExplorerProps {
   files: GeneratedFile[];
   selectedFile: GeneratedFile | null;
   onSelectFile: (file: GeneratedFile) => void;
+  onRename: (oldPath: string, newName: string, isFolder: boolean) => void;
+  onDelete: (path: string, isFolder: boolean) => void;
   searchQuery: string;
 }
 
 type FileNode = {
   name: string;
-  path: string;
+  path: string; // Full path including name
   type: 'file' | 'folder';
   children: Record<string, FileNode>;
   fileRef?: GeneratedFile;
@@ -56,9 +58,14 @@ const FileTreeItem: React.FC<{
   depth: number; 
   selectedFile: GeneratedFile | null; 
   onSelectFile: (file: GeneratedFile) => void; 
+  onRename: (oldPath: string, newName: string, isFolder: boolean) => void;
+  onDelete: (path: string, isFolder: boolean) => void;
   defaultExpanded?: boolean 
-}> = ({ node, depth, selectedFile, onSelectFile, defaultExpanded = true }) => {
+}> = ({ node, depth, selectedFile, onSelectFile, onRename, onDelete, defaultExpanded = true }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(node.name);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Sort: Folders first, then files, alphabetical
   const sortedChildren = useMemo(() => {
@@ -71,19 +78,66 @@ const FileTreeItem: React.FC<{
   const isSelected = node.type === 'file' && selectedFile?.path === node.path;
   const indent = depth * 12 + 12; // base 12px padding
 
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSubmit = () => {
+    if (editName.trim() && editName !== node.name) {
+      onRename(node.path, editName.trim(), node.type === 'folder');
+    }
+    setIsEditing(false);
+    setEditName(node.name); // Reset to current if failed/cancelled, will update on next render if success
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Escape') {
+      setIsEditing(false);
+      setEditName(node.name);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Basic right click to delete implementation
+    if (confirm(`Delete ${node.name}?`)) {
+      onDelete(node.path, node.type === 'folder');
+    }
+  };
+
   if (node.type === 'folder') {
     return (
       <div>
         <div 
-          className="flex items-center gap-1 py-1 px-2 hover:bg-zinc-900/50 cursor-pointer text-zinc-400 hover:text-zinc-200 transition-colors select-none"
+          className="flex items-center gap-1 py-1 px-2 hover:bg-zinc-900/50 cursor-pointer text-zinc-400 hover:text-zinc-200 transition-colors select-none group relative"
           style={{ paddingLeft: `${indent}px` }}
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => !isEditing && setIsExpanded(!isExpanded)}
+          onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+          onContextMenu={handleContextMenu}
         >
           <span className="opacity-70">
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </span>
           {isExpanded ? <FolderOpen size={15} className="text-indigo-400/80" /> : <Folder size={15} className="text-indigo-400/80" />}
-          <span className="text-xs font-medium ml-1">{node.name}</span>
+          
+          {isEditing ? (
+            <input 
+              ref={inputRef}
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleSubmit}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-1 bg-zinc-800 text-xs text-white px-1 py-0.5 rounded border border-indigo-500 outline-none w-full min-w-[50px]"
+            />
+          ) : (
+            <span className="text-xs font-medium ml-1">{node.name}</span>
+          )}
         </div>
         {isExpanded && (
           <div>
@@ -94,6 +148,8 @@ const FileTreeItem: React.FC<{
                 depth={depth + 1} 
                 selectedFile={selectedFile} 
                 onSelectFile={onSelectFile} 
+                onRename={onRename}
+                onDelete={onDelete}
               />
             ))}
           </div>
@@ -104,21 +160,36 @@ const FileTreeItem: React.FC<{
 
   return (
     <div 
-      className={`flex items-center gap-2 py-1 px-2 cursor-pointer select-none border-l-2 transition-all duration-150 ${
+      className={`flex items-center gap-2 py-1 px-2 cursor-pointer select-none border-l-2 transition-all duration-150 group relative ${
         isSelected 
           ? 'bg-indigo-500/10 border-indigo-500 text-indigo-200' 
           : 'border-transparent hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
       }`}
       style={{ paddingLeft: `${indent + 16}px` }}
-      onClick={() => node.fileRef && onSelectFile(node.fileRef)}
+      onClick={() => node.fileRef && !isEditing && onSelectFile(node.fileRef)}
+      onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+      onContextMenu={handleContextMenu}
     >
       {getFileIcon(node.name)}
-      <span className="text-xs font-mono truncate">{node.name}</span>
+      {isEditing ? (
+        <input 
+          ref={inputRef}
+          type="text"
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={handleSubmit}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-zinc-800 text-xs font-mono text-white px-1 py-0 rounded border border-indigo-500 outline-none w-full min-w-[50px]"
+        />
+      ) : (
+        <span className="text-xs font-mono truncate">{node.name}</span>
+      )}
     </div>
   );
 };
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSelectFile, searchQuery }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSelectFile, onRename, onDelete, searchQuery }) => {
   // Build Tree Structure
   const fileTree = useMemo(() => {
     const root: FileNode = { name: 'root', path: '', type: 'folder', children: {} };
@@ -153,6 +224,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSele
       <div className="p-3 border-b border-zinc-800 flex flex-col gap-2 shrink-0">
          <div className="flex items-center justify-between">
              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Explorer</span>
+             <div className="text-[10px] text-zinc-600">Double-click to rename</div>
          </div>
       </div>
 
@@ -169,6 +241,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSele
                     depth={0} 
                     selectedFile={selectedFile} 
                     onSelectFile={onSelectFile} 
+                    onRename={onRename}
+                    onDelete={onDelete}
                 />
             ))
         )}
