@@ -9,12 +9,14 @@ import PreviewPane from './components/PreviewPane';
 import TerminalPane from './components/TerminalPane';
 import ChatSidebar from './components/ChatSidebar';
 import SettingsModal from './components/SettingsModal';
+import AuthModal from './components/AuthModal';
+import { Button } from './components/ui/Button';
 import JSZip from 'jszip';
 import { 
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command
+  Github, FolderUp, Keyboard, Command, LogIn, UserCircle
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -28,7 +30,11 @@ const App: React.FC = () => {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // --- STATE ---
+  // --- AUTH STATE ---
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // --- APP STATE ---
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<GeneratedFile | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -488,8 +494,32 @@ const App: React.FC = () => {
   if (!hasStarted && files.length === 0) {
      return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-indigo-500/30">
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={(u) => { setUser(u); setIsAuthModalOpen(false); }} />
+
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+        {/* Header overlay for landing */}
+        <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <Sparkles size={16} className="text-white" />
+                </div>
+                <span className="font-bold text-lg tracking-tight">OmniGen</span>
+            </div>
+            <div>
+                {user ? (
+                    <div className="flex items-center gap-3">
+                         <span className="text-sm text-zinc-300">Hello, {user.name}</span>
+                         <Button size="sm" variant="secondary" onClick={() => setUser(null)}>Logout</Button>
+                    </div>
+                ) : (
+                    <Button variant="gradient" size="sm" onClick={() => setIsAuthModalOpen(true)} leftIcon={<LogIn size={14} />}>
+                        Login / Register
+                    </Button>
+                )}
+            </div>
+        </div>
 
         <div className="z-10 w-full max-w-3xl px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 mb-8 backdrop-blur-sm shadow-lg">
@@ -595,14 +625,15 @@ const App: React.FC = () => {
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600"
                             />
                         </div>
-                        <button 
+                        <Button 
                              onClick={handleGithubImport}
                              disabled={!githubUrl}
-                             className="bg-zinc-100 hover:bg-white text-zinc-900 px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                             isLoading={isGenerating}
+                             leftIcon={<Download size={16} />}
+                             variant="secondary"
                         >
-                            {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Download size={16} />}
                             Clone Repository
-                        </button>
+                        </Button>
                         <p className="text-[10px] text-zinc-500">Supports public repositories. Large repos may take a moment.</p>
                     </div>
                 )}
@@ -661,6 +692,12 @@ const App: React.FC = () => {
         onUpdateSettings={setSettings} 
       />
 
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLogin={(userData) => { setUser(userData); setIsAuthModalOpen(false); }}
+      />
+
       {/* === HEADER === */}
       <header className="h-12 border-b border-zinc-800 flex items-center px-4 gap-4 bg-[#09090b] shrink-0 z-20 justify-between select-none">
         <div className="flex items-center gap-4">
@@ -714,6 +751,27 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+            {user ? (
+                <div className="flex items-center gap-2 text-xs bg-zinc-900 border border-zinc-800 rounded-full pl-1 pr-3 py-1">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm">
+                        {user.avatar || user.name[0]}
+                    </div>
+                    <span className="text-zinc-300">{user.name}</span>
+                </div>
+            ) : (
+                <Button 
+                    variant="gradient" 
+                    size="sm" 
+                    onClick={() => setIsAuthModalOpen(true)} 
+                    leftIcon={<LogIn size={12} />}
+                    className="shadow-md shadow-indigo-500/20"
+                >
+                    Login
+                </Button>
+            )}
+
+            <div className="h-6 w-px bg-zinc-800"></div>
+
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
                 <Settings size={16} />
             </button>
@@ -849,9 +907,10 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="h-6 bg-[#09090b] border-t border-zinc-800 flex items-center px-4 text-[10px] text-zinc-500 justify-between shrink-0 select-none z-20">
         <div className="flex gap-3">
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> OmniGen v3.0 Pro</span>
+            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> OmniGen v3.1 Enterprise</span>
             {files.length > 0 && <span>• {files.length} files</span>}
             <span>• {settings.model}</span>
+            {user && <span className="text-indigo-400">• Auth: Active</span>}
         </div>
         <div className="flex gap-4 font-mono opacity-70">
              <span className="hidden md:inline">CTRL+B Explorer</span>
