@@ -13,7 +13,7 @@ const analyzeComplexity = (prompt) => {
         'dashboard', 'cms', 'saas', 'enterprise', 'refactor', 'optimize',
         'video editor', 'game engine', '3d', 'webgl', 'webgpu', 'three.js',
         'rust', 'c++', 'cpp', 'assembly', 'cuda', 'ffmpeg', 'ai model',
-        'security', 'encryption', 'blockchain'
+        'security', 'encryption', 'blockchain', 'test', 'jest', 'vitest', 'coverage'
     ];
     const score = complexKeywords.reduce((acc, kw) => prompt.toLowerCase().includes(kw) ? acc + 1 : acc, 0);
     return score > 0;
@@ -79,6 +79,7 @@ const setupProject = (files, prompt) => {
         "start": "vite",
         "build": "vite build",
         "preview": "vite preview",
+        "test": "vitest",
         "lint": "eslint ."
       },
       dependencies: {
@@ -86,14 +87,19 @@ const setupProject = (files, prompt) => {
         "react-dom": "^18.2.0",
         "lucide-react": "^0.344.0",
         "clsx": "^2.1.0",
-        "tailwind-merge": "^2.2.1"
+        "tailwind-merge": "^2.2.1",
+        "framer-motion": "^11.0.0"
       },
       devDependencies: {
         "@vitejs/plugin-react": "^4.2.1",
         "autoprefixer": "^10.4.18",
         "postcss": "^8.4.35",
         "tailwindcss": "^3.4.1",
-        "vite": "^5.1.4"
+        "vite": "^5.1.4",
+        "vitest": "^1.3.1",
+        "@testing-library/react": "^14.2.1",
+        "@testing-library/jest-dom": "^6.4.2",
+        "jsdom": "^24.0.0"
       }
     };
     
@@ -126,7 +132,8 @@ const setupProject = (files, prompt) => {
                 strict: true,
                 unusedLocals: false,
                 unusedParameters: false,
-                noFallthroughCasesInSwitch: true
+                noFallthroughCasesInSwitch: true,
+                types: ["vitest/globals"]
             },
             include: ["src"],
             references: [{ path: "./tsconfig.node.json" }]
@@ -145,7 +152,7 @@ const setupProject = (files, prompt) => {
                     moduleResolution: "bundler",
                     allowSyntheticDefaultImports: true
                 },
-                include: ["vite.config.ts"]
+                include: ["vite.config.ts", "vitest.config.ts"]
               }, null, 2)
           });
       }
@@ -166,8 +173,9 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       const fileSummary = currentFiles.map(f => `${f.path}`).join(', ');
       promptContext += `Current Project Structure: ${fileSummary}\n`;
       
-      // Optimization: Only send full content of relevant files if list is huge, 
-      // but for this demo we send all to ensure context.
+      // Optimization: Only send full content of relevant files if list is huge.
+      // For "thousands of files" context, we would ideally use RAG or summarization here.
+      // For now, we pass full context but in a real "thousands of files" app, we would only pass open files.
       promptContext += `Current File Contents:\n${JSON.stringify(currentFiles)}\n\n`;
   }
   
@@ -177,9 +185,8 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
   // Config
   const isComplex = analyzeComplexity(userPrompt);
-  // Force Pro model for complex tasks if not explicitly set (or if user is on default)
+  // Force Pro model for complex tasks/testing if not explicitly set
   const effectiveModel = (isComplex && model === 'gemini-2.5-flash') ? 'gemini-3-pro-preview' : model;
-  const shouldUseThinking = effectiveModel.includes('pro') || isComplex;
 
   // Prepare Parts
   const parts = [{ text: promptContext }];
@@ -187,7 +194,6 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   // Add attachments (Images/Text)
   for (const att of attachments) {
       if (att.isImage) {
-          // Remove data:image/png;base64, prefix if present
           const base64Data = att.content.split(',')[1] || att.content;
           parts.push({
               inlineData: {
@@ -203,30 +209,23 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   // Retry Loop
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        // Note: We create a new model instance per request if configs change dynamically, 
-        // but generally one instance is fine if configs are passed in generateContent.
-        
         const response = await ai.models.generateContent({
             model: effectiveModel,
             contents: { parts },
             config: {
                 systemInstruction,
                 responseMimeType: 'application/json',
-                // Thinking Config (Only for 2.5 series currently, but safe to omit if not needed)
-                // thinkingConfig: shouldUseThinking ? { thinkingBudget: 4096 } : undefined,
-                temperature: isModification ? 0.2 : 0.7, // Lower temp for code mods to be precise
+                temperature: isModification ? 0.2 : 0.7,
             }
         });
 
         const text = response.text;
         if (!text) throw new Error("Empty response from AI");
 
-        // Parse and Heal
         let files = parseHealedJson(text);
 
-        // Validation: Ensure it's an array
+        // Validation
         if (!Array.isArray(files)) {
-             // Sometimes models return { "files": [...] }
              if (files.files && Array.isArray(files.files)) {
                  files = files.files;
              } else {
@@ -234,9 +233,8 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
              }
         }
 
-        // Post-Processing: Merge with existing files if modification
+        // Post-Processing: Merge
         if (isModification) {
-            // Update existing files or add new ones
             const updatedFilesMap = new Map(currentFiles.map(f => [f.path, f]));
             files.forEach(f => {
                 updatedFilesMap.set(f.path, f);
@@ -252,7 +250,6 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       } catch (err) {
           console.error(`Attempt ${attempt + 1} failed:`, err.message);
           if (attempt === MAX_RETRIES) throw err;
-          // Exponential backoff
           await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
       }
   }
@@ -262,10 +259,11 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 const runSimulation = async (files, command) => {
   try {
       // 1. Contextualize the execution environment
+      // We must pass the file content so the AI can "run" the tests
       const fileContext = files.map(f => `[FILE: ${f.path}]\n${f.content}`).join('\n\n');
       
       const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash', // Use Flash for fast terminal responses
+          model: 'gemini-2.5-flash', // Flash is good for fast simulation
           contents: `CONTEXT:\n${fileContext}\n\nCOMMAND: ${command}`,
           config: {
               systemInstruction: getExecutionSystemInstruction(),
