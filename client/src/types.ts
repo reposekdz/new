@@ -64,3 +64,28 @@ export interface TerminalLog {
   content: string;
   timestamp: number;
 }
+
+// --- GIT TYPES ---
+
+export type GitStatus = 'modified' | 'new' | 'deleted' | 'unmodified';
+
+export interface FileChange {
+  path: string;
+  status: GitStatus;
+}
+
+export interface Commit {
+  id: string;
+  message: string;
+  author: string;
+  date: string;
+  filesSnapshot: GeneratedFile[]; // Snapshot of files at this commit
+}
+
+export interface GitState {
+  isInitialized: boolean;
+  commits: Commit[];
+  stagedFiles: string[]; // Paths of files staged for commit
+  branch: string;
+  remoteUrl?: string;
+}

@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, Platform, ProgrammingLanguage, ProjectTemplate } from './types';
-import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo, getTemplateBoilerplate } from './services/geminiService';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, Platform, ProgrammingLanguage, ProjectTemplate, GitState, Commit } from './types';
+import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo, getTemplateBoilerplate, generateCommitMessage } from './services/geminiService';
 import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
@@ -10,6 +10,7 @@ import TerminalPane from './components/TerminalPane';
 import ChatSidebar from './components/ChatSidebar';
 import SettingsModal from './components/SettingsModal';
 import AuthModal from './components/AuthModal';
+import SourceControl from './components/SourceControl';
 import { Button } from './components/ui/Button';
 import JSZip from 'jszip';
 import { 
@@ -17,10 +18,9 @@ import {
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
   Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Server, GitBranch, 
-  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi
+  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi, GitCommit, GitCompare, UploadCloud
 } from 'lucide-react';
 
-// --- TEMPLATE DEFINITIONS ---
 const TEMPLATES: ProjectTemplate[] = [
   {
     id: 'react-vite',
@@ -82,7 +82,18 @@ const App: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
+  // --- GIT STATE ---
+  const [gitState, setGitState] = useState<GitState>({
+      isInitialized: false,
+      commits: [],
+      stagedFiles: [],
+      branch: 'main'
+  });
+  const [diffFile, setDiffFile] = useState<GeneratedFile | null>(null); // Current file being diffed
+  const [activeSidebar, setActiveSidebar] = useState<'explorer' | 'git'>('explorer');
+
   const [searchHistory, setSearchHistory] = useState<string[]>(() => {
       try {
         const saved = localStorage.getItem('omnigen_search_history');
@@ -105,7 +116,7 @@ const App: React.FC = () => {
   // View & Layout State
   const [viewMode, setViewMode] = useState<'code' | 'split' | 'preview'>('split');
   const [showChat, setShowChat] = useState(true);
-  const [showExplorer, setShowExplorer] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true);
   
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [chatWidth, setChatWidth] = useState(300);
@@ -170,12 +181,208 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'b') { e.preventDefault(); setShowExplorer(prev => !prev); }
+        if ((e.metaKey || e.ctrlKey) && e.key === 'b') { 
+            e.preventDefault(); 
+            if (!showSidebar) { setShowSidebar(true); setActiveSidebar('explorer'); }
+            else if (activeSidebar === 'git') { setActiveSidebar('explorer'); }
+            else { setShowSidebar(false); }
+        }
         if ((e.metaKey || e.ctrlKey) && e.key === '\\') { e.preventDefault(); setShowChat(prev => !prev); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSidebar, activeSidebar]);
+
+  // --- DRAG AND DROP LOGIC ---
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
   }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+      setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      
+      const items = e.dataTransfer.items;
+      if (!items || items.length === 0) return;
+
+      setIsGenerating(true);
+      setError(null);
+
+      if (!hasStarted) setHasStarted(true);
+
+      const filesArray: GeneratedFile[] = [];
+      
+      // Helper: Check if file is binary/image to skip text reading or handle differently
+      const isBinary = (filename: string) => {
+          return /\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar|pyc|o|a)$/i.test(filename);
+      };
+
+      // Helper: Traverse FileSystemEntry
+      const traverseFileTree = async (item: any, path = "") => {
+          if (item.isFile) {
+             if (item.name.startsWith('.')) return; // Skip hidden system files like .DS_Store
+             const file = await new Promise<File>((resolve, reject) => item.file(resolve, reject));
+             
+             // Skip node_modules, .git, etc if they slipped in
+             if (path.includes('node_modules') || path.includes('.git')) return;
+             
+             if (isBinary(file.name)) {
+                 // For now, we skip binaries to save memory or we could read as base64 if needed
+                 // Let's skip them for the code editor context
+                 return;
+             }
+
+             const content = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve(e.target?.result as string || "");
+                 reader.readAsText(file);
+             });
+             filesArray.push({ path: path + file.name, content });
+          } else if (item.isDirectory) {
+             if (['node_modules', '.git', 'dist', 'build'].includes(item.name)) return;
+             const dirReader = item.createReader();
+             const entries = await new Promise<any[]>((resolve) => {
+                 dirReader.readEntries(resolve);
+             });
+             for (const entry of entries) {
+                 await traverseFileTree(entry, path + item.name + "/");
+             }
+          }
+      };
+
+      try {
+          const promises = [];
+          for (let i = 0; i < items.length; i++) {
+              const item = items[i].webkitGetAsEntry();
+              if (item) {
+                  // If user dropped a folder, item.name is folder name. 
+                  // If dropped file, item.name is filename.
+                  // We treat the drop root as root of project if single folder, or mix.
+                  promises.push(traverseFileTree(item, ""));
+              }
+          }
+          await Promise.all(promises);
+
+          if (filesArray.length > 0) {
+              // Flatten paths if single root folder dropped
+              // e.g. dropped "my-app" -> "my-app/src/index.ts" -> "src/index.ts"
+              const rootDirs = new Set(filesArray.map(f => f.path.split('/')[0]));
+              if (rootDirs.size === 1 && items.length === 1 && items[0].webkitGetAsEntry()?.isDirectory) {
+                  const rootDir = rootDirs.values().next().value;
+                  filesArray.forEach(f => {
+                      f.path = f.path.substring(rootDir.length + 1);
+                  });
+              }
+
+              setFiles(prev => {
+                  // Merge logic: overwrite existing paths
+                  const newFilesMap = new Map(prev.map(f => [f.path, f]));
+                  filesArray.forEach(f => newFilesMap.set(f.path, f));
+                  return Array.from(newFilesMap.values());
+              });
+
+              handleGitInit(filesArray); // Re-init or add to git
+              setMessages(prev => [...prev, { role: 'model', text: `Imported ${filesArray.length} files via drag & drop.`, timestamp: Date.now() }]);
+              
+              // Open first relevant file
+              const entry = filesArray.find(f => f.path === 'package.json' || f.path.endsWith('index.html') || f.path.endsWith('App.tsx'));
+              if (entry) setSelectedFile(entry);
+          } else {
+              setError("No valid text files found in drop.");
+          }
+      } catch (err: any) {
+          setError(`Drop failed: ${err.message}`);
+      } finally {
+          setIsGenerating(false);
+      }
+  }, [hasStarted]);
+
+  // --- GIT ACTIONS ---
+  const handleGitInit = (initialFiles: GeneratedFile[]) => {
+      const initialCommit: Commit = {
+          id: Math.random().toString(36).substr(2, 9),
+          message: 'Initial commit',
+          author: 'OmniGen',
+          date: new Date().toISOString(),
+          filesSnapshot: JSON.parse(JSON.stringify(initialFiles))
+      };
+      setGitState({
+          isInitialized: true,
+          commits: [initialCommit],
+          stagedFiles: [],
+          branch: 'main'
+      });
+  };
+
+  const handleStage = (path: string) => {
+      setGitState(prev => ({ ...prev, stagedFiles: [...prev.stagedFiles, path] }));
+  };
+
+  const handleUnstage = (path: string) => {
+      setGitState(prev => ({ ...prev, stagedFiles: prev.stagedFiles.filter(p => p !== path) }));
+  };
+
+  const handleCommit = (message: string) => {
+      const newCommit: Commit = {
+          id: Math.random().toString(36).substr(2, 9),
+          message,
+          author: user ? user.name : 'Developer',
+          date: new Date().toISOString(),
+          filesSnapshot: JSON.parse(JSON.stringify(files)) // In a real git, we'd only snapshot staged files + previous state, but here we assume full snapshot for simplicity in simulation
+      };
+      setGitState(prev => ({
+          ...prev,
+          commits: [newCommit, ...prev.commits],
+          stagedFiles: []
+      }));
+      setTerminalLogs(prev => [...prev, { type: 'info', content: `[master ${newCommit.id.substr(0,7)}] ${message}`, timestamp: Date.now() }]);
+  };
+
+  const handlePush = () => {
+      setTerminalLogs(prev => [...prev, { type: 'info', content: `Enumerating objects: ${gitState.commits.length}, done.\nCounting objects: 100% (${gitState.commits.length}/${gitState.commits.length}), done.\nWriting objects: 100%, 4.12 KiB | 4.12 MiB/s, done.\nTo https://github.com/omnigen-project/${settings.projectName}.git\n   ${gitState.commits[1]?.id.substr(0,7) || '0000000'}..${gitState.commits[0].id.substr(0,7)}  main -> main`, timestamp: Date.now() }]);
+      // Trigger AI to acknowledge push if needed
+      setMessages(prev => [...prev, { role: 'model', text: `Code pushed to origin/main successfully.`, timestamp: Date.now() }]);
+  };
+
+  const handleDiscard = (path: string) => {
+      const lastCommit = gitState.commits[0];
+      if (!lastCommit) return;
+      const originalFile = lastCommit.filesSnapshot.find(f => f.path === path);
+      if (originalFile) {
+          // Revert file content
+          setFiles(prev => prev.map(f => f.path === path ? { ...f, content: originalFile.content } : f));
+          if (selectedFile?.path === path) setSelectedFile({ ...selectedFile, content: originalFile.content });
+      } else {
+          // File was new, so delete it
+          setFiles(prev => prev.filter(f => f.path !== path));
+          if (selectedFile?.path === path) setSelectedFile(null);
+      }
+  };
+
+  const handleSelectForDiff = (file: GeneratedFile) => {
+      setSelectedFile(file);
+      setDiffFile(file);
+      // Only relevant if we have git history
+      if (gitState.isInitialized) {
+          const original = gitState.commits[0]?.filesSnapshot.find(f => f.path === file.path);
+          // Pass original to editor via prop
+      }
+  };
+
+  const handleGenerateCommitMessage = async (): Promise<string> => {
+      const staged = files.filter(f => gitState.stagedFiles.includes(f.path));
+      return await generateCommitMessage(staged, files);
+  };
 
   // --- HANDLERS ---
   const handleInitialGenerate = async () => {
@@ -187,15 +394,17 @@ const App: React.FC = () => {
     
     try {
         const scaffold = setupProject(settings.projectName, language);
-        setFiles(scaffold);
-
+        
         const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
         setMessages([userMsg]);
 
         const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], platform, language);
         setFiles(generatedFiles);
         
-        setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${platform} / ${language}).`, timestamp: Date.now() }]);
+        // Auto-init Git
+        handleGitInit(generatedFiles);
+
+        setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${platform} / ${language}). Git repository initialized.`, timestamp: Date.now() }]);
 
         if (generatedFiles.length > 0) {
             const entry = generatedFiles.find(f => f.path === 'index.html' || f.path.endsWith('App.tsx')) || generatedFiles[0];
@@ -227,7 +436,7 @@ const App: React.FC = () => {
               if (updatedSelected) setSelectedFile(updatedSelected);
           }
 
-          setMessages(prev => [...prev, { role: 'model', text: `Changes applied successfully.`, timestamp: Date.now() }]);
+          setMessages(prev => [...prev, { role: 'model', text: `Changes applied successfully. Don't forget to commit your changes.`, timestamp: Date.now() }]);
       } catch (err: any) {
           logger.error("Conversation Generation Failed", err);
           setError(err.message || "Failed to update project.");
@@ -267,6 +476,7 @@ const App: React.FC = () => {
   };
 
   const handleRenameFile = (oldPath: string, newName: string, isFolder: boolean) => {
+    // Rename logic same as before
     try {
         setFiles(prevFiles => {
         const newFiles = prevFiles.map(file => {
@@ -314,6 +524,7 @@ const App: React.FC = () => {
           setFiles(templateFiles);
           setPlatform(template.platform);
           setLanguage(template.language);
+          handleGitInit(templateFiles); // Init git
           setMessages([{ role: 'model', text: `Loaded ${template.name} template.`, timestamp: Date.now() }]);
           if (templateFiles.length > 0) {
               setSelectedFile(templateFiles.find(f => f.path.endsWith('tsx') || f.path.endsWith('jsx')) || templateFiles[0]);
@@ -334,6 +545,7 @@ const App: React.FC = () => {
       try {
           const importedFiles = await importGithubRepo(githubUrl);
           setFiles(importedFiles);
+          handleGitInit(importedFiles);
           setMessages([{ role: 'model', text: `Imported ${importedFiles.length} files from GitHub.`, timestamp: Date.now() }]);
           if (importedFiles.length > 0) setSelectedFile(importedFiles[0]);
       } catch (err: any) {
@@ -363,6 +575,7 @@ const App: React.FC = () => {
             filesArray.push({ path, content });
         }
         setFiles(filesArray);
+        handleGitInit(filesArray);
         setMessages([{ role: 'model', text: `Imported ${filesArray.length} files from folder.`, timestamp: Date.now() }]);
         if (filesArray.length > 0) setSelectedFile(filesArray[0]);
     } catch (err: any) {
@@ -395,6 +608,34 @@ const App: React.FC = () => {
   const handleTerminalCommand = async (command: string) => {
     setTerminalLogs(prev => [...prev, { type: 'command', content: command, timestamp: Date.now() }]);
     const cmd = command.trim().split(' ')[0].toLowerCase();
+    
+    // Intercept Git Commands
+    if (cmd === 'git') {
+        const args = command.trim().split(' ');
+        const subCmd = args[1];
+        if (subCmd === 'commit') {
+            const msgMatch = command.match(/-m\s+["'](.+)["']/);
+            const msg = msgMatch ? msgMatch[1] : 'Update';
+            handleCommit(msg);
+            return;
+        }
+        if (subCmd === 'add') {
+            if (args[2] === '.') files.forEach(f => handleStage(f.path));
+            else handleStage(args[2]);
+            setTerminalLogs(prev => [...prev, { type: 'stdout', content: '', timestamp: Date.now() }]);
+            return;
+        }
+        if (subCmd === 'push') {
+            handlePush();
+            return;
+        }
+        if (subCmd === 'status') {
+            const changes = files.length; // simplified
+            setTerminalLogs(prev => [...prev, { type: 'stdout', content: `On branch main\nChanges to be committed:\n  (use "git restore --staged <file>..." to unstage)\n\tmodified: ...`, timestamp: Date.now() }]);
+            return;
+        }
+    }
+
     if (cmd === 'clear') { setTerminalLogs([]); return; }
     setIsRunning(true);
     try {
@@ -438,11 +679,24 @@ const App: React.FC = () => {
 
   // --- RENDER LANDING ---
   if (!hasStarted && files.length === 0) {
-     // ... (Same Landing Page Code, just compacted for brevity in update) ...
-     // Ideally we keep the landing page code as is, assuming it was working.
-     // Re-injecting Landing Page logic roughly:
      return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-indigo-500/30">
+      <div 
+        className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-indigo-500/30 ${isDragging ? 'bg-zinc-900/80' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag Overlay */}
+        {isDragging && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-indigo-500/20 backdrop-blur-sm border-4 border-indigo-500 border-dashed m-4 rounded-3xl animate-pulse">
+                <div className="flex flex-col items-center text-white">
+                    <UploadCloud size={64} className="mb-4" />
+                    <span className="text-2xl font-bold">Drop project folder here</span>
+                    <span className="text-zinc-300">OmniGen will analyze and import the codebase</span>
+                </div>
+            </div>
+        )}
+
         <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={(u) => { setUser(u); setIsAuthModalOpen(false); }} />
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onUpdateSettings={setSettings} />
         {/* Background Blobs */}
@@ -464,7 +718,7 @@ const App: React.FC = () => {
 
         <div className="z-10 w-full max-w-3xl px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
              <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500">OmniGen</h1>
-             <p className="text-lg text-zinc-400 mb-10 max-w-xl">The universal AI software architect.</p>
+             <p className="text-lg text-zinc-400 mb-10 max-w-xl">The universal AI software architect. Build full-stack apps in seconds.</p>
              
              <div className="w-full bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden relative group">
                   <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50">
@@ -488,7 +742,7 @@ const App: React.FC = () => {
                                 value={landingPrompt}
                                 onChange={(e) => setLandingPrompt(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
-                                placeholder="Describe your custom application..."
+                                placeholder="Describe your custom application... (e.g. 'A Next.js E-commerce store with Stripe')"
                                 className="w-full bg-transparent text-lg text-white p-4 min-h-[100px] outline-none resize-none font-light placeholder:text-zinc-600"
                             />
                             <div className="flex items-center justify-between pt-2">
@@ -507,9 +761,9 @@ const App: React.FC = () => {
                         </div>
                     )}
                     {landingTab === 'folder' && (
-                        <div className="text-center p-8 border-2 border-dashed border-zinc-800 rounded-lg cursor-pointer hover:bg-zinc-900" onClick={() => folderInputRef.current?.click()}>
+                        <div className="text-center p-8 border-2 border-dashed border-zinc-800 rounded-lg cursor-pointer hover:bg-zinc-900 transition-colors" onClick={() => folderInputRef.current?.click()}>
                             <FolderUp size={24} className="mx-auto mb-2 text-zinc-500" />
-                            <span className="text-sm text-zinc-400">Click to upload</span>
+                            <span className="text-sm text-zinc-400">Click to upload or Drag & Drop folder</span>
                             <input type="file" ref={folderInputRef} onChange={handleFolderImport} className="hidden" {...{ webkitdirectory: "", directory: "" } as any} />
                         </div>
                     )}
@@ -522,7 +776,22 @@ const App: React.FC = () => {
 
   // --- MAIN RENDER ---
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
+    <div 
+        className="h-screen w-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="fixed inset-0 z-[100] bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+            <div className="bg-zinc-900 p-6 rounded-xl border border-indigo-500 shadow-2xl text-center animate-bounce">
+                <UploadCloud size={48} className="mx-auto mb-2 text-indigo-400" />
+                <h2 className="text-xl font-bold text-white">Import Folder</h2>
+                <p className="text-zinc-400">Drop to load into workspace</p>
+            </div>
+        </div>
+      )}
+
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onUpdateSettings={setSettings} />
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={(u) => { setUser(u); setIsAuthModalOpen(false); }} />
 
@@ -535,7 +804,8 @@ const App: React.FC = () => {
             <div className="h-4 w-px bg-zinc-800"></div>
             <div className="flex bg-zinc-900 rounded p-0.5 border border-zinc-800">
                 <button onClick={() => setShowChat(!showChat)} className={`p-1 rounded ${showChat ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Chat (Ctrl+\)"><MessageSquare size={12}/></button>
-                <button onClick={() => setShowExplorer(!showExplorer)} className={`p-1 rounded ${showExplorer ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Explorer (Ctrl+B)"><PanelLeftOpen size={12}/></button>
+                <button onClick={() => { setShowSidebar(true); setActiveSidebar('explorer'); }} className={`p-1 rounded ${showSidebar && activeSidebar === 'explorer' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Explorer (Ctrl+B)"><PanelLeftOpen size={12}/></button>
+                <button onClick={() => { setShowSidebar(true); setActiveSidebar('git'); }} className={`p-1 rounded ${showSidebar && activeSidebar === 'git' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Source Control"><GitBranch size={12}/></button>
             </div>
          </div>
 
@@ -562,10 +832,24 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* 2. Explorer */}
-        {showExplorer && (
+        {/* 2. Sidebar (Explorer / Git) */}
+        {showSidebar && (
             <div style={{ width: sidebarWidth }} className="flex flex-col border-r border-zinc-800 bg-[#09090b] z-0 relative">
-                 <FileExplorer files={files} selectedFile={selectedFile} onSelectFile={setSelectedFile} onRename={handleRenameFile} onDelete={handleDeleteFile} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchHistory={searchHistory} onAddToHistory={(t) => setSearchHistory(p => [t, ...p])} onClearHistory={() => setSearchHistory([])} />
+                 {activeSidebar === 'explorer' ? (
+                     <FileExplorer files={files} selectedFile={selectedFile} onSelectFile={(f) => { setSelectedFile(f); setDiffFile(null); }} onRename={handleRenameFile} onDelete={handleDeleteFile} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchHistory={searchHistory} onAddToHistory={(t) => setSearchHistory(p => [t, ...p])} onClearHistory={() => setSearchHistory([])} />
+                 ) : (
+                     <SourceControl 
+                        files={files} 
+                        gitState={gitState} 
+                        onStage={handleStage} 
+                        onUnstage={handleUnstage} 
+                        onCommit={handleCommit} 
+                        onPush={handlePush} 
+                        onDiscard={handleDiscard}
+                        onSelectFileForDiff={handleSelectForDiff}
+                        onGenerateAiMessage={handleGenerateCommitMessage}
+                     />
+                 )}
                  <div className="absolute right-[-2px] top-0 bottom-0 w-1 cursor-col-resize z-50 hover:bg-indigo-500/50" onMouseDown={() => { isResizingSidebar.current = true; document.body.style.cursor = 'col-resize'; }} />
             </div>
         )}
@@ -579,13 +863,9 @@ const App: React.FC = () => {
                         {/* VS Code Style Tabs */}
                         <div className="h-9 bg-[#09090b] border-b border-zinc-800 flex items-end px-0 gap-0.5 overflow-x-auto scrollbar-hide select-none">
                              <div className="flex items-center gap-2 px-3 py-2 bg-[#1e1e1e] border-t-2 border-indigo-500 text-zinc-200 text-xs min-w-[120px] max-w-[200px] relative group">
-                                 <Code2 size={12} className="text-blue-400 shrink-0" />
-                                 <span className="truncate font-medium">{selectedFile.path.split('/').pop()}</span>
-                                 <button className="ml-auto opacity-0 group-hover:opacity-100 hover:bg-zinc-700 rounded p-0.5"><X size={10} /></button>
-                             </div>
-                             {/* Placeholder for other tabs if multi-tab support added */}
-                             <div className="flex items-center gap-2 px-3 py-2 bg-[#0c0c0c] border-t border-transparent text-zinc-500 text-xs min-w-[120px] max-w-[200px] hover:bg-[#151515] cursor-pointer border-r border-zinc-800/50">
-                                 <span className="truncate italic opacity-50">Preview (Read-only)</span>
+                                 {diffFile ? <GitCompare size={12} className="text-yellow-400 shrink-0" /> : <Code2 size={12} className="text-blue-400 shrink-0" />}
+                                 <span className="truncate font-medium">{selectedFile.path.split('/').pop()} {diffFile ? '(Diff)' : ''}</span>
+                                 <button onClick={() => { setSelectedFile(null); setDiffFile(null); }} className="ml-auto opacity-0 group-hover:opacity-100 hover:bg-zinc-700 rounded p-0.5"><X size={10} /></button>
                              </div>
                         </div>
                         
@@ -608,6 +888,8 @@ const App: React.FC = () => {
                              )}
                              <CodeEditor 
                                 file={selectedFile} 
+                                originalFile={diffFile && gitState.commits[0] ? gitState.commits[0].filesSnapshot.find(f => f.path === selectedFile.path) : null}
+                                isDiffMode={!!diffFile}
                                 onChange={handleFileChange} 
                                 fontSize={settings.editorFontSize} 
                                 onAIAction={handleAiAction} 
@@ -652,9 +934,9 @@ const App: React.FC = () => {
       {/* STATUS BAR (VS Code Style) */}
       <footer className="h-6 bg-[#007acc] text-white flex items-center justify-between px-3 text-[11px] select-none z-30 shrink-0 font-sans">
         <div className="flex items-center gap-4 h-full">
-             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
+             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer" onClick={() => { setShowSidebar(true); setActiveSidebar('git'); }}>
                  <GitBranch size={10} />
-                 <span>master*</span>
+                 <span>{gitState.branch}*</span>
              </div>
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
                  <XCircle size={10} /> 0
@@ -676,9 +958,6 @@ const App: React.FC = () => {
              </div>
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
                  <Wifi size={10} /> OmniGen Server
-             </div>
-             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
-                 <span>Ln 12, Col 45</span>
              </div>
         </div>
       </footer>

@@ -1,12 +1,14 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import Editor, { loader, Monaco } from '@monaco-editor/react';
+import Editor, { DiffEditor, loader, Monaco } from '@monaco-editor/react';
 import { GeneratedFile } from '../types';
-import { Sparkles, FileSearch, Zap, Bug, MessageSquarePlus, MoreVertical, Keyboard } from 'lucide-react';
+import { Sparkles, FileSearch, Zap, Bug, MessageSquarePlus, MoreVertical, Keyboard, GitCompare } from 'lucide-react';
 import { getSnippetsForLanguage } from '../utils/snippetLibrary';
 
 interface CodeEditorProps {
   file: GeneratedFile | null;
+  originalFile?: GeneratedFile | null; // For Diff View
+  isDiffMode?: boolean;
   onChange: (newContent: string) => void;
   fontSize: number;
   onAIAction: (action: string, filePath: string, code: string) => void;
@@ -40,7 +42,15 @@ const getLanguageFromPath = (path: string): string => {
   }
 };
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction, vimMode = false }) => {
+const CodeEditor: React.FC<CodeEditorProps> = ({ 
+  file, 
+  originalFile, 
+  isDiffMode = false, 
+  onChange, 
+  fontSize, 
+  onAIAction, 
+  vimMode = false 
+}) => {
   const language = useMemo(() => file ? getLanguageFromPath(file.path) : 'plaintext', [file]);
   
   const [showAiMenu, setShowAiMenu] = useState(false);
@@ -76,7 +86,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
       let mounted = true;
       
       const loadVim = async () => {
-        if (!editorRef.current || !statusNodeRef.current) return;
+        // VIM mode doesn't work well in DiffEditor, so disable it there
+        if (!editorRef.current || !statusNodeRef.current || isDiffMode) return;
 
         if (vimMode) {
             if (!vimModeRef.current) {
@@ -109,7 +120,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
                vimModeRef.current = null;
           }
       };
-  }, [vimMode, file?.path]); // Re-run on file change to ensure VIM re-attaches if needed
+  }, [vimMode, file?.path, isDiffMode]); 
 
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
       monacoRef.current = monaco;
@@ -127,82 +138,104 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative group">
       
-      {/* Floating AI Action Widget */}
-      <div className="absolute top-4 right-6 z-10">
-        <div className="relative">
-            <button 
-                onClick={() => setShowAiMenu(!showAiMenu)}
-                className="flex items-center gap-2 bg-indigo-600/90 hover:bg-indigo-500 text-white pl-3 pr-4 py-1.5 rounded-full shadow-lg shadow-indigo-900/20 text-xs font-medium transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 hover:scale-105 border border-indigo-500/50 backdrop-blur-md"
-            >
-                <Sparkles size={12} />
-                AI Actions
-                <MoreVertical size={12} className="opacity-50" />
-            </button>
-            
-            {/* Context Menu */}
-            {showAiMenu && (
-                <div className="absolute right-0 top-full mt-2 w-60 bg-[#252526] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
-                    <div className="px-3 py-2 border-b border-zinc-700/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900/50">
-                        Intelligence
+      {/* Floating AI Action Widget (Only in normal editor mode) */}
+      {!isDiffMode && (
+        <div className="absolute top-4 right-6 z-10">
+            <div className="relative">
+                <button 
+                    onClick={() => setShowAiMenu(!showAiMenu)}
+                    className="flex items-center gap-2 bg-indigo-600/90 hover:bg-indigo-500 text-white pl-3 pr-4 py-1.5 rounded-full shadow-lg shadow-indigo-900/20 text-xs font-medium transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 hover:scale-105 border border-indigo-500/50 backdrop-blur-md"
+                >
+                    <Sparkles size={12} />
+                    AI Actions
+                    <MoreVertical size={12} className="opacity-50" />
+                </button>
+                
+                {/* Context Menu */}
+                {showAiMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-60 bg-[#252526] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
+                        <div className="px-3 py-2 border-b border-zinc-700/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900/50">
+                            Intelligence
+                        </div>
+                        <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
+                            <FileSearch size={14} className="text-blue-400 group-hover/item:text-white"/> Explain Logic
+                        </button>
+                        <button onClick={() => handleAction('performance')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
+                            <Zap size={14} className="text-amber-400 group-hover/item:text-white"/> Optimize Performance
+                        </button>
+                        <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
+                            <Sparkles size={14} className="text-purple-400 group-hover/item:text-white"/> Refactor Code
+                        </button>
+                        <button onClick={() => handleAction('debug')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
+                            <Bug size={14} className="text-red-400 group-hover/item:text-white"/> Find Bugs
+                        </button>
+                        <div className="h-px bg-zinc-700/50 my-1"></div>
+                        <button onClick={() => handleAction('comments')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white text-left transition-colors">
+                            <MessageSquarePlus size={14} className="text-green-400"/> Add Comments
+                        </button>
                     </div>
-                    <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
-                        <FileSearch size={14} className="text-blue-400 group-hover/item:text-white"/> Explain Logic
-                    </button>
-                    <button onClick={() => handleAction('performance')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
-                        <Zap size={14} className="text-amber-400 group-hover/item:text-white"/> Optimize Performance
-                    </button>
-                    <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
-                        <Sparkles size={14} className="text-purple-400 group-hover/item:text-white"/> Refactor Code
-                    </button>
-                    <button onClick={() => handleAction('debug')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
-                        <Bug size={14} className="text-red-400 group-hover/item:text-white"/> Find Bugs
-                    </button>
-                    <div className="h-px bg-zinc-700/50 my-1"></div>
-                    <button onClick={() => handleAction('comments')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white text-left transition-colors">
-                        <MessageSquarePlus size={14} className="text-green-400"/> Add Comments
-                    </button>
-                </div>
-            )}
+                )}
+            </div>
         </div>
-      </div>
+      )}
 
       {/* Editor Area */}
       <div className="flex-1 relative">
-        <Editor
-          height="100%"
-          path={file.path}
-          language={language}
-          value={file.content}
-          theme="vs-dark"
-          onMount={handleEditorDidMount}
-          onChange={(value) => onChange(value || '')}
-          options={{
-            minimap: { enabled: true, scale: 0.75 },
-            fontSize: fontSize,
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            fontLigatures: true,
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            automaticLayout: true,
-            wordWrap: 'on',
-            padding: { top: 16, bottom: 16 },
-            renderLineHighlight: 'all',
-            bracketPairColorization: { enabled: true },
-            formatOnType: true,
-            formatOnPaste: true,
-            tabSize: 2,
-            snippetSuggestions: 'top',
-            cursorBlinking: vimMode ? 'solid' : 'blink',
-            cursorStyle: vimMode ? 'block' : 'line',
-            contextmenu: true,
-          }}
-        />
+        {isDiffMode && originalFile ? (
+             <DiffEditor
+                height="100%"
+                original={originalFile.content}
+                modified={file.content}
+                language={language}
+                theme="vs-dark"
+                options={{
+                    fontSize: fontSize,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    renderSideBySide: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    padding: { top: 16, bottom: 16 },
+                    originalEditable: false,
+                    readOnly: true, // Diff view is typically read-only for the comparison
+                }}
+             />
+        ) : (
+            <Editor
+                height="100%"
+                path={file.path}
+                language={language}
+                value={file.content}
+                theme="vs-dark"
+                onMount={handleEditorDidMount}
+                onChange={(value) => onChange(value || '')}
+                options={{
+                    minimap: { enabled: true, scale: 0.75 },
+                    fontSize: fontSize,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    fontLigatures: true,
+                    scrollBeyondLastLine: false,
+                    smoothScrolling: true,
+                    automaticLayout: true,
+                    wordWrap: 'on',
+                    padding: { top: 16, bottom: 16 },
+                    renderLineHighlight: 'all',
+                    bracketPairColorization: { enabled: true },
+                    formatOnType: true,
+                    formatOnPaste: true,
+                    tabSize: 2,
+                    snippetSuggestions: 'top',
+                    cursorBlinking: vimMode ? 'solid' : 'blink',
+                    cursorStyle: vimMode ? 'block' : 'line',
+                    contextmenu: true,
+                }}
+            />
+        )}
       </div>
 
-      {/* VIM Status Bar (Integrated into Editor Bottom) */}
+      {/* VIM Status Bar */}
       <div 
         ref={statusNodeRef} 
-        className={`vim-status-bar bg-[#007acc] text-white font-mono text-xs px-2 flex items-center transition-all duration-200 ${vimMode ? 'min-h-[24px] border-t border-white/10' : 'h-0 overflow-hidden border-0'}`}
+        className={`vim-status-bar bg-[#007acc] text-white font-mono text-xs px-2 flex items-center transition-all duration-200 ${vimMode && !isDiffMode ? 'min-h-[24px] border-t border-white/10' : 'h-0 overflow-hidden border-0'}`}
       >
       </div>
       

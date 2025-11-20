@@ -7,73 +7,49 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const MAX_RETRIES = 3;
 
 /**
- * Analyzes the user's prompt to determine if the task requires a more powerful model.
+ * Analyzes complexity to determine if we need the "Heavy Lifter" model.
  */
 const analyzeComplexity = (prompt) => {
     const highTierKeywords = [
-        'architecture', 'microservices', 'ddd', 'security', 'encryption', 
-        'realtime', 'socket', 'webrtc', 'webgl', 'shader', 'compiler',
-        'interpreter', 'operating system', 'kernel', 'blockchain', 'smart contract',
-        'optimization', 'refactor', 'testing', 'coverage', 'ci/cd', 'deployment',
-        'authentication', 'authorization', 'oauth', 'jwt', 'redux', 'zustand',
-        'mobile', 'react native', 'expo', 'electron', 'rust', 'c++',
-        'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace', '3d', 'three.js',
-        'vim', 'neovim', 'plugin', 'extension', 'template', 'scaffold', 'new project'
+        'architecture', 'microservices', 'database', 'full stack', 'production',
+        'react native', 'rust', 'go', 'python', 'c++', 'security', 'auth',
+        'realtime', 'socket', 'webrtc', 'encryption', 'algorithm', 'singularity', 
+        'optimize', 'refactor', 'scalable'
     ];
     
-    let score = 0;
-    if (prompt.length > 200) score += 1;
-    if (prompt.toLowerCase().includes('full stack') || prompt.toLowerCase().includes('complete')) score += 1;
-    
-    // Scaffolding a new project is critical, always use Pro
-    if (prompt.toLowerCase().includes('new project') || prompt.toLowerCase().includes('scaffold')) score += 5;
+    // Almost any "create" request should go to Pro to ensure "World Class" quality
+    if (prompt.length > 40 || prompt.toLowerCase().includes('create') || prompt.toLowerCase().includes('build')) {
+        return true;
+    }
 
-    highTierKeywords.forEach(kw => {
-        if (prompt.toLowerCase().includes(kw)) score += 2;
-    });
-
-    return score >= 3; 
+    return highTierKeywords.some(kw => prompt.toLowerCase().includes(kw));
 };
 
 /**
- * Robustly extracts and parses JSON from AI responses, handling "Thinking" blocks and Markdown.
+ * Robustly extracts and parses JSON from AI responses.
  */
 const parseHealedJson = (text) => {
     if (!text) throw new Error("Empty response from AI");
-
-    // 1. Try to extract JSON block using Markdown Code Blocks
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/;
     const match = text.match(jsonBlockRegex);
-    
-    let cleanText = text;
-    if (match && match[1]) {
-        cleanText = match[1];
-    } else {
-        // 2. Fallback: Remove all markdown code block markers
-        cleanText = text.replace(/```json/g, '').replace(/```/g, '');
-    }
-
-    // 3. Strip comments (// ...) to ensure JSON.parse works
-    cleanText = cleanText.replace(/\/\/.*$/gm, '');
+    let cleanText = match && match[1] ? match[1] : text.replace(/```json/g, '').replace(/```/g, '');
+    cleanText = cleanText.replace(/\/\/.*$/gm, ''); // Remove comments
 
     try {
         return JSON.parse(cleanText);
     } catch (e) {
-        // 4. Aggressive Regex Extraction (Find outer-most [ ... ])
+        // Fallback: Try to find the largest array bracket pair
         const firstBracket = cleanText.indexOf('[');
         const lastBracket = cleanText.lastIndexOf(']');
-        
         if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
             const potentialJson = cleanText.substring(firstBracket, lastBracket + 1);
-            try { return JSON.parse(potentialJson); } catch (e2) { /* continue */ }
-            
-            // 5. Fix Trailing Commas in the extracted block
+            try { return JSON.parse(potentialJson); } catch (e2) { /* give up */ }
+             // Fix Trailing Commas
             const fixedText = potentialJson.replace(/,(\s*[\]}])/g, '$1');
-            try { return JSON.parse(fixedText); } catch (e3) { /* continue */ }
+            try { return JSON.parse(fixedText); } catch (e3) { /* give up */ }
         }
-        
-        console.error("Failed JSON Text Preview:", text.substring(0, 500) + "...");
-        throw new Error("Failed to parse JSON response from AI. The model might be thinking too hard.");
+        console.error("Failed JSON Text:", text.substring(0, 500) + "...");
+        throw new Error("Failed to parse JSON. The architecture was too complex to serialize.");
     }
 };
 
@@ -87,27 +63,23 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   
   if (currentFiles.length > 0) {
       const fileSummary = currentFiles.map(f => f.path).join(', ');
-      promptContext += `Current Project Structure (${currentFiles.length} files): ${fileSummary}\n`;
-      
-      // Truncate large files for context to avoid token limits
-      const contextFiles = currentFiles.map(f => ({
-          path: f.path,
-          content: f.content.length > 12000 ? f.content.substring(0, 12000) + "\n...[TRUNCATED]..." : f.content
-      }));
+      promptContext += `Current Project Structure: ${fileSummary}\n`;
+      // Send full content for deep reasoning
+      const contextFiles = currentFiles.map(f => ({ path: f.path, content: f.content }));
       promptContext += `Current File Contents:\n${JSON.stringify(contextFiles)}\n\n`;
   }
   
   if (history.length > 0) {
-      promptContext += `Conversation History:\n${history.map(h => `${h.role.toUpperCase()}: ${h.text}`).join('\n')}\n\n`;
+      promptContext += `History:\n${history.map(h => `${h.role.toUpperCase()}: ${h.text}`).join('\n')}\n\n`;
   }
 
   const isComplex = analyzeComplexity(userPrompt);
-  let effectiveModel = model;
   
-  // Auto-upgrade to Pro for complex architecture tasks
-  if (isComplex && model === 'gemini-2.5-flash') {
-      console.log("Complexity detected: Upgrading to Gemini 3.0 Pro Preview for Architecture Planning");
+  // AGGRESSIVE UPGRADE: Always use Pro for creation/complex tasks to match "World Class" requirement
+  let effectiveModel = model;
+  if (isComplex || !isModification) {
       effectiveModel = 'gemini-3-pro-preview';
+      console.log("🚀 Upgrading to Gemini 3.0 Pro for World-Class Generation");
   }
 
   const parts = [{ text: promptContext }];
@@ -115,29 +87,24 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   for (const att of attachments) {
       if (att.isImage) {
           const base64Data = att.content.split(',')[1] || att.content;
-          parts.push({
-              inlineData: { mimeType: att.type, data: base64Data }
-          });
+          parts.push({ inlineData: { mimeType: att.type, data: base64Data } });
       } else {
           parts.push({ text: `[ATTACHMENT: ${att.name}]\n${att.content}` });
       }
   }
 
-  const isThinkingModel = effectiveModel.includes('2.5') || effectiveModel.includes('pro');
-
+  // MAXIMIZED THINKING BUDGET (SINGULARITY MODE)
   const config = {
       systemInstruction,
-      temperature: isThinkingModel ? 0.7 : 0.4, 
+      temperature: 0.7, 
       topK: 40,
       topP: 0.95,
   };
 
-  // Enable Deep Thinking Budget for complex tasks
-  if (isThinkingModel && (isComplex || effectiveModel.includes('pro'))) {
-       // Maximize reasoning for Pro model to beat competitors
-       const budget = isComplex ? 16384 : 8192; 
-       config.thinkingConfig = { thinkingBudget: budget };
-       console.log(`[AI] Deep Thinking Enabled: Budget ${budget}`);
+  if (effectiveModel.includes('pro') || effectiveModel.includes('2.5')) {
+       // 32768 is the hard limit for the 2.5 Pro model. This provides maximum reasoning depth.
+       config.thinkingConfig = { thinkingBudget: 32768 }; 
+       console.log(`[AI] SINGULARITY MODE ACTIVE: Thinking Budget Maxed to 32,768`);
   }
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -160,7 +127,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
         files = files.filter(f => f && f.path && typeof f.content === 'string');
 
-        // Merge with existing if modification
+        // Merge with existing
         if (isModification) {
             const updatedFilesMap = new Map(currentFiles.map(f => [f.path, f]));
             files.forEach(f => {
@@ -174,8 +141,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       } catch (err) {
           console.error(`[Attempt ${attempt + 1}] Generation failed:`, err.message);
           if (attempt === MAX_RETRIES) throw new Error(`Failed after ${MAX_RETRIES} attempts: ${err.message}`);
-          const delay = 1000 * Math.pow(2, attempt);
-          await new Promise(r => setTimeout(r, delay));
+          await new Promise(r => setTimeout(r, 1500)); // Backoff
       }
   }
 };
@@ -183,7 +149,6 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 const runSimulation = async (files, command) => {
   try {
       const fileContext = files.map(f => `[FILE: ${f.path}]\n${f.content}`).join('\n\n');
-      
       const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash', 
           contents: `CONTEXT:\n${fileContext}\n\nCOMMAND: ${command}`,
@@ -192,7 +157,6 @@ const runSimulation = async (files, command) => {
               temperature: 0.1
           }
       });
-
       return response.text;
   } catch (error) {
       return `System Error: ${error.message}`;
