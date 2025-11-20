@@ -371,6 +371,7 @@ const App: React.FC = () => {
       let prompt = "";
       switch(action) {
           case 'explain': prompt = `Explain the code in ${filePath} and how it works.`; break;
+          case 'performance': prompt = `Analyze ${filePath} for performance bottlenecks (Time Complexity, Memory, React Renders) and suggest specific optimizations.`; break;
           case 'refactor': prompt = `Refactor ${filePath} to be cleaner, more performant, and follow best practices.`; break;
           case 'debug': prompt = `Analyze ${filePath} for potential bugs and fix them.`; break;
           case 'comments': prompt = `Add helpful comments to ${filePath} explaining the logic.`; break;

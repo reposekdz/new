@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import { GeneratedFile } from '../types';
-import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch, Keyboard } from 'lucide-react';
+import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch, Keyboard, Zap } from 'lucide-react';
 import { getSnippetsForLanguage } from '../utils/snippetLibrary';
 // @ts-ignore - Dynamic import handling for CDN
 import { initVimMode } from 'monaco-vim';
@@ -162,6 +162,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
                 <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
                     <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
                         <FileSearch size={14} className="text-blue-400"/> Explain Code
+                    </button>
+                    <button onClick={() => handleAction('performance')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
+                        <Zap size={14} className="text-amber-400"/> Performance Check
                     </button>
                     <button onClick={() => handleAction('refactor')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
                         <Sparkles size={14} className="text-purple-400"/> Refactor
