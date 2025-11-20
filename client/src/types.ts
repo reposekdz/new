@@ -44,6 +44,15 @@ export interface AppState {
   messages: ChatMessage[];
 }
 
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  platform: Platform;
+  language: ProgrammingLanguage;
+}
+
 export enum ViewMode {
   EDITOR = 'EDITOR',
   PREVIEW = 'PREVIEW',

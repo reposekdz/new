@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, GenerationType, Platform, ProgrammingLanguage } from './types';
-import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo } from './services/geminiService';
+import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, GenerationType, Platform, ProgrammingLanguage, ProjectTemplate } from './types';
+import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo, getTemplateBoilerplate } from './services/geminiService';
 import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
@@ -16,8 +16,44 @@ import {
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Layers, Server, GitBranch
+  Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Layers, Server, GitBranch, Database, FileCode2, AppWindow
 } from 'lucide-react';
+
+// --- TEMPLATE DEFINITIONS ---
+const TEMPLATES: ProjectTemplate[] = [
+  {
+    id: 'react-vite',
+    name: 'React + Vite',
+    description: 'Modern web app with Tailwind CSS and Lucide Icons.',
+    icon: <Globe className="text-blue-400" size={20} />,
+    platform: 'web',
+    language: 'javascript'
+  },
+  {
+    id: 'node-express',
+    name: 'Node.js API',
+    description: 'Express REST API with TypeScript and CORS.',
+    icon: <Server className="text-green-400" size={20} />,
+    platform: 'web', // Acts as backend, but handled in web context for simplicity here
+    language: 'typescript'
+  },
+  {
+    id: 'python-flask',
+    name: 'Python Flask',
+    description: 'Lightweight Python web server backend.',
+    icon: <Database className="text-yellow-400" size={20} />,
+    platform: 'web',
+    language: 'python'
+  },
+  {
+    id: 'html-css',
+    name: 'Vanilla HTML5',
+    description: 'Simple static website without build steps.',
+    icon: <FileCode2 className="text-orange-400" size={20} />,
+    platform: 'web',
+    language: 'html/css'
+  }
+];
 
 const App: React.FC = () => {
   // --- GLOBAL SETTINGS ---
@@ -46,7 +82,6 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Search History State
   const [searchHistory, setSearchHistory] = useState<string[]>(() => {
       try {
         const saved = localStorage.getItem('omnigen_search_history');
@@ -62,11 +97,9 @@ const App: React.FC = () => {
   const [landingPrompt, setLandingPrompt] = useState("");
   const [landingAttachments, setLandingAttachments] = useState<Attachment[]>([]);
   
-  // Advanced Selections
   const [platform, setPlatform] = useState<Platform>('web');
   const [language, setLanguage] = useState<ProgrammingLanguage>('typescript');
   
-  // Refs
   const landingFileRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -76,20 +109,16 @@ const App: React.FC = () => {
   const [showChat, setShowChat] = useState(true);
   const [showExplorer, setShowExplorer] = useState(true);
   
-  // Dimensions & Resizing
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [chatWidth, setChatWidth] = useState(300);
   const [splitPos, setSplitPos] = useState(50); 
   
-  // Resizing Refs
   const isResizingSidebar = useRef(false);
   const isResizingChat = useRef(false);
   const isResizingSplit = useRef(false);
 
-  // Conversational State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   
-  // Terminal State
   const [activeTab, setActiveTab] = useState<'preview' | 'terminal'>('preview');
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -103,7 +132,6 @@ const App: React.FC = () => {
       }
   }, [searchHistory]);
 
-  // Apply defaults from settings
   useEffect(() => {
       if (!hasStarted) {
           setPlatform(settings.defaultPlatform);
@@ -111,10 +139,8 @@ const App: React.FC = () => {
       }
   }, [settings.defaultPlatform, settings.defaultLanguage, hasStarted]);
 
-  // --- EFFECT: Sync Project Name to package.json ---
   useEffect(() => {
     if (files.length === 0) return;
-    
     setFiles(prevFiles => prevFiles.map(f => {
         if (f.path === 'package.json') {
             try {
@@ -131,7 +157,6 @@ const App: React.FC = () => {
     }));
   }, [settings.projectName]); 
 
-  // --- MOUSE EVENTS FOR RESIZING ---
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingSidebar.current) {
@@ -172,7 +197,6 @@ const App: React.FC = () => {
       iframes.forEach(el => (el.style.pointerEvents = 'none'));
   };
 
-  // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'b') { e.preventDefault(); setShowExplorer(prev => !prev); }
@@ -182,18 +206,15 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- HANDLERS ---
   const handleSearchHistoryAdd = (term: string) => {
       if (!term.trim()) return;
       setSearchHistory(prev => {
-          const filtered = prev.filter(t => t !== term); // Remove dupes
-          return [term, ...filtered].slice(0, 10); // Keep last 10
+          const filtered = prev.filter(t => t !== term);
+          return [term, ...filtered].slice(0, 10);
       });
   };
 
-  const handleSearchHistoryClear = () => {
-      setSearchHistory([]);
-  };
+  const handleSearchHistoryClear = () => setSearchHistory([]);
 
   const handleLandingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -234,10 +255,7 @@ const App: React.FC = () => {
               const file = e.target.files[i];
               const path = (file.webkitRelativePath || file.name);
               
-              // Simple Ignore Filter
               if (IGNORED.some(ignore => path.includes(ignore))) continue;
-              
-              // Skip binary files roughly by extension
               if (path.match(/\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar)$/i)) continue;
 
               const content = await new Promise<string>((resolve) => {
@@ -250,8 +268,6 @@ const App: React.FC = () => {
           }
 
           setFiles(filesArray);
-          
-          // Add context message
           const contextMsg: ChatMessage = {
                role: 'model',
                text: `Successfully imported ${filesArray.length} files from local folder. I have analyzed the structure. How can I help you?`,
@@ -299,10 +315,55 @@ const App: React.FC = () => {
       } catch (err: any) {
           logger.error("GitHub Import Failed", err);
           setError(err.message);
-          setHasStarted(false); // Go back to landing
+          setHasStarted(false);
       } finally {
           setIsGenerating(false);
       }
+  };
+
+  const handleTemplateSelect = (template: ProjectTemplate) => {
+    setIsGenerating(true);
+    setHasStarted(true);
+    setError(null);
+
+    try {
+      // Instant load from hardcoded boilerplates
+      const templateFiles = getTemplateBoilerplate(template.id);
+      setFiles(templateFiles);
+      setPlatform(template.platform);
+      setLanguage(template.language);
+
+      const contextMsg: ChatMessage = {
+        role: 'model',
+        text: `Loaded ${template.name} template. Ready to code!`,
+        timestamp: Date.now()
+      };
+      setMessages([contextMsg]);
+
+      if (templateFiles.length > 0) {
+        // Heuristic for finding the "Main" file to show first
+        const entry = templateFiles.find(f => 
+          f.path === 'src/App.jsx' || 
+          f.path === 'src/index.ts' || 
+          f.path === 'app.py' || 
+          f.path === 'index.html'
+        ) || templateFiles[0];
+        
+        setSelectedFile(entry);
+        
+        // Switch tab based on template type
+        if (template.id === 'react-vite' || template.id === 'html-css') {
+          setActiveTab('preview');
+        } else {
+          setActiveTab('terminal');
+        }
+      }
+    } catch (err: any) {
+      setError("Failed to load template.");
+    } finally {
+      setIsGenerating(false);
+      setPreviewKey(prev => prev + 1);
+    }
   };
 
   const handleInitialGenerate = async () => {
@@ -313,7 +374,6 @@ const App: React.FC = () => {
     setError(null);
     
     try {
-        // Pre-scaffold basic files while waiting for AI
         const scaffold = setupProject(settings.projectName, language);
         setFiles(scaffold);
 
@@ -370,11 +430,11 @@ const App: React.FC = () => {
       setShowChat(true);
       let prompt = "";
       switch(action) {
-          case 'explain': prompt = `Explain the code in ${filePath} and how it works.`; break;
+          case 'explain': prompt = `Explain the code in ${filePath} deeply. Break down the logic, inputs, and outputs.`; break;
           case 'performance': prompt = `Analyze ${filePath} for performance bottlenecks (Time Complexity, Memory, React Renders) and suggest specific optimizations.`; break;
-          case 'refactor': prompt = `Refactor ${filePath} to be cleaner, more performant, and follow best practices.`; break;
-          case 'debug': prompt = `Analyze ${filePath} for potential bugs and fix them.`; break;
-          case 'comments': prompt = `Add helpful comments to ${filePath} explaining the logic.`; break;
+          case 'refactor': prompt = `Refactor ${filePath} to be cleaner, more performant, and follow best practices (SOLID, DRY). Maintain functionality.`; break;
+          case 'debug': prompt = `Analyze ${filePath} for potential bugs, race conditions, or edge cases. Suggest fixes.`; break;
+          case 'comments': prompt = `Add helpful JSDoc/DocString comments to ${filePath} explaining complex logic.`; break;
       }
       if(prompt) handleConversationMessage(prompt, []);
   };
@@ -394,7 +454,6 @@ const App: React.FC = () => {
     setSelectedFile({ ...selectedFile, content: newContent });
   };
 
-  // --- FILE SYSTEM OPERATIONS ---
   const handleRenameFile = (oldPath: string, newName: string, isFolder: boolean) => {
     try {
         setFiles(prevFiles => {
@@ -458,7 +517,7 @@ const App: React.FC = () => {
 
       if (cmd === 'clear') { setTerminalLogs([]); return; }
       
-      // --- CLIENT-SIDE GIT SIMULATION ---
+      // --- ADVANCED GIT SIMULATION ---
       if (cmd === 'git') {
           const gitAction = args[1];
           if (!gitAction) {
@@ -472,8 +531,8 @@ const App: React.FC = () => {
           }
           
           if (gitAction === 'status') {
-              const untracked = files.slice(0, 5).map(f => `\t${f.path}`);
-              const output = `On branch master\n\nNo commits yet\n\nUntracked files:\n  (use "git add <file>..." to include in what will be committed)\n${untracked.join('\n')}\n\nnothing added to commit but untracked files present`;
+              const untracked = files.slice(0, Math.min(5, files.length)).map(f => `\t${f.path}`);
+              const output = `On branch master\n\nNo commits yet\n\nUntracked files:\n  (use "git add <file>..." to include in what will be committed)\n${untracked.join('\n')}\n${files.length > 5 ? `\t... and ${files.length - 5} more` : ''}\n\nnothing added to commit but untracked files present (use "git add" to track)`;
               setTerminalLogs(prev => [...prev, { type: 'stdout', content: output, timestamp: Date.now() }]);
               return;
           }
@@ -484,11 +543,22 @@ const App: React.FC = () => {
           }
 
           if (gitAction === 'commit') {
-              setTerminalLogs(prev => [...prev, { type: 'stdout', content: `[master (root-commit) 1a2b3c] ${args.slice(3).join(' ').replace(/"/g, '') || 'Initial commit'}\n ${files.length} files changed, ${files.reduce((acc, f) => acc + f.content.split('\n').length, 0)} insertions(+)`, timestamp: Date.now() }]);
+              const msg = args.slice(3).join(' ').replace(/"/g, '') || 'Initial commit';
+              const hash = Math.random().toString(16).substr(2, 7);
+              const output = `[master (root-commit) ${hash}] ${msg}\n ${files.length} files changed, ${files.reduce((acc, f) => acc + f.content.split('\n').length, 0)} insertions(+)`;
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: output, timestamp: Date.now() }]);
               return;
           }
+
+          if (gitAction === 'log') {
+               setTerminalLogs(prev => [...prev, { type: 'stdout', content: `commit ${Math.random().toString(16).substr(2, 40)}\nAuthor: ${user?.name || 'OmniGen User'} <${user?.email || 'dev@omnigen.ai'}>\nDate:   ${new Date().toString()}\n\n    Initial commit`, timestamp: Date.now() }]);
+               return;
+          }
           
-          // Fallback for other git commands to the AI Simulator
+          if (gitAction === 'push') {
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: `Enumerating objects: ${files.length + 3}, done.\nCounting objects: 100% (${files.length + 3}/${files.length + 3}), done.\nDelta compression using up to 8 threads\nCompressing objects: 100% (${files.length}/${files.length}), done.\nWriting objects: 100% (${files.length + 3}/${files.length + 3}), 2.45 KiB | 2.45 MiB/s, done.\nTotal ${files.length + 3} (delta 1), reused 0 (delta 0)\nTo https://github.com/${user?.name || 'user'}/${settings.projectName}.git\n * [new branch]      master -> master`, timestamp: Date.now() }]);
+              return;
+          }
       }
 
       setIsRunning(true);
@@ -538,7 +608,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- LANDING VIEW ---
   if (!hasStarted && files.length === 0) {
      return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-indigo-500/30">
@@ -547,7 +616,6 @@ const App: React.FC = () => {
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-        {/* Header overlay for landing */}
         <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[100] w-full pointer-events-none">
             <div className="flex items-center gap-2 pointer-events-auto">
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -588,10 +656,8 @@ const App: React.FC = () => {
             The universal AI software architect. Build Web, Mobile, and Desktop applications in any language.
           </p>
 
-          {/* --- INTERACTIVE INPUT AREA --- */}
           <div className="w-full bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden relative group focus-within:border-indigo-500/50 transition-all duration-300">
              
-             {/* TABS */}
              <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50">
                  <button 
                     onClick={() => setLandingTab('new')}
@@ -613,14 +679,32 @@ const App: React.FC = () => {
                  </button>
              </div>
 
-             {/* CONTENT AREAS */}
              <div className="p-2">
-                
-                {/* 1. NEW PROJECT */}
                 {landingTab === 'new' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         
-                        {/* Platform Toggle */}
+                        {/* Templates Section */}
+                        <div className="px-4 py-3 border-b border-zinc-800/50 mb-2">
+                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 text-left">Quick Start Templates</h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {TEMPLATES.map(template => (
+                              <button
+                                key={template.id}
+                                onClick={() => handleTemplateSelect(template)}
+                                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-indigo-500/50 rounded-lg p-3 text-left transition-all group/card flex flex-col gap-2"
+                              >
+                                <div className="p-2 bg-zinc-950 rounded-md w-fit group-hover/card:bg-indigo-900/20 transition-colors">
+                                  {template.icon}
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-zinc-200">{template.name}</div>
+                                  <div className="text-[10px] text-zinc-500 leading-tight mt-0.5">{template.description}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         <div className="flex items-center justify-center gap-1 mb-2 py-2 border-b border-zinc-800/50">
                              <button 
                                 onClick={() => setPlatform('web')}
@@ -660,13 +744,12 @@ const App: React.FC = () => {
                             placeholder={
                                 platform === 'mobile' ? "Describe your mobile app (e.g. 'A React Native fitness tracker')..." :
                                 platform === 'desktop' ? "Describe your desktop tool (e.g. 'An Electron system monitor')..." :
-                                "Describe your web application..."
+                                "Or describe your custom application from scratch..."
                             }
-                            className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
+                            className="w-full bg-transparent text-lg text-white p-4 min-h-[100px] outline-none resize-none font-light placeholder:text-zinc-600"
                         />
                         <div className="flex flex-wrap items-center justify-between px-4 pb-2 gap-2">
                             <div className="flex items-center gap-2">
-                                {/* Language Selector */}
                                 <div className="relative">
                                     <select 
                                         value={language}
@@ -724,7 +807,6 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* 2. GITHUB IMPORT */}
                 {landingTab === 'github' && (
                     <div className="p-6 flex flex-col items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 min-h-[160px]">
                         <div className="w-full max-w-md relative">
@@ -750,7 +832,6 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* 3. FOLDER IMPORT */}
                 {landingTab === 'folder' && (
                     <div className="p-6 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-2 duration-300 min-h-[160px]">
                         <div 
@@ -775,7 +856,6 @@ const App: React.FC = () => {
              </div>
           </div>
           
-          {/* Hint Section */}
           <div className="mt-8 flex gap-6 text-xs text-zinc-500">
                <div className="flex items-center gap-2">
                    <Keyboard size={12} />
@@ -796,7 +876,6 @@ const App: React.FC = () => {
      );
   }
 
-  // --- MAIN APP LAYOUT (After Started) ---
   return (
     <div className="h-screen w-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
       
@@ -813,7 +892,6 @@ const App: React.FC = () => {
         onLogin={(userData) => { setUser(userData); setIsAuthModalOpen(false); }}
       />
 
-      {/* === APP HEADER === */}
       <header className="h-12 border-b border-zinc-800 flex items-center px-4 gap-4 bg-[#09090b] shrink-0 z-20 justify-between select-none">
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setHasStarted(false); setFiles([]); setMessages([]); }}>
@@ -823,7 +901,6 @@ const App: React.FC = () => {
                 <span className="font-bold text-sm tracking-tight text-zinc-100 hidden md:block">OmniGen</span>
             </div>
 
-            {/* Sidebar Toggles */}
             <div className="flex items-center bg-zinc-900/50 rounded-lg border border-zinc-800 p-0.5">
                 <button 
                     onClick={() => setShowChat(!showChat)} 
@@ -843,7 +920,6 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* View Switcher */}
         <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1 gap-1 shadow-inner">
             <button 
                 onClick={() => setViewMode('code')}
@@ -899,10 +975,8 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* === MAIN WORKSPACE === */}
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* 1. Chat Sidebar */}
         {showChat && (
             <div style={{ width: chatWidth }} className="flex flex-col border-r border-zinc-800 shrink-0 relative bg-zinc-950 z-10">
                  <ChatSidebar 
@@ -919,7 +993,6 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* 2. File Explorer */}
         {showExplorer && (
             <div style={{ width: sidebarWidth }} className="flex flex-col border-r border-zinc-800 bg-[#09090b] shrink-0 relative z-0">
                 <FileExplorer 
@@ -941,10 +1014,8 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* 3. WORKSPACE AREA (Code + Preview/Terminal) */}
         <div ref={workspaceRef} className="flex-1 flex min-w-0 bg-[#1e1e1e] relative overflow-hidden">
             
-            {/* CODE PANE */}
             <div 
                 className={`flex flex-col h-full ${viewMode === 'preview' ? 'hidden' : ''} relative`}
                 style={{ width: viewMode === 'split' ? `${splitPos}%` : '100%' }}
@@ -981,7 +1052,6 @@ const App: React.FC = () => {
                 )}
             </div>
 
-            {/* RESIZER (Only in Split Mode) */}
             {viewMode === 'split' && (
                 <div 
                     className="w-1 bg-zinc-800 hover:bg-indigo-500 cursor-col-resize relative z-50 transition-colors"
@@ -989,7 +1059,6 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* PREVIEW / TERMINAL PANE */}
             <div 
                 className={`flex flex-col h-full bg-[#0c0c0c] border-l border-zinc-800 ${viewMode === 'code' ? 'hidden' : ''}`}
                 style={{ width: viewMode === 'split' ? `${100 - splitPos}%` : '100%' }}
@@ -1020,7 +1089,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="h-6 bg-[#09090b] border-t border-zinc-800 flex items-center px-4 text-[10px] text-zinc-500 justify-between shrink-0 select-none z-20">
         <div className="flex gap-3">
             <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> OmniGen v3.1 Enterprise</span>

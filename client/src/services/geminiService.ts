@@ -93,3 +93,228 @@ export const setupProject = (projectName: string = 'omnigen-app', language: Prog
 
   return files;
 };
+
+/**
+ * Returns pre-defined file structures for specific project templates.
+ * This allows for instant project creation without waiting for AI generation.
+ */
+export const getTemplateBoilerplate = (templateId: string): GeneratedFile[] => {
+  const basicFiles = setupProject('omnigen-app', 'typescript');
+
+  switch (templateId) {
+    case 'react-vite':
+      return [
+        ...basicFiles,
+        {
+          path: 'package.json',
+          content: JSON.stringify({
+            name: "react-vite-app",
+            version: "1.0.0",
+            dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "lucide-react": "^0.300.0" },
+            scripts: { "dev": "vite", "build": "vite build", "preview": "vite preview" }
+          }, null, 2)
+        },
+        {
+          path: 'index.html',
+          content: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>React App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>`
+        },
+        {
+          path: 'src/main.jsx',
+          content: `import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)`
+        },
+        {
+          path: 'src/App.jsx',
+          content: `import React, { useState } from 'react'
+import { Sparkles } from 'lucide-react'
+
+function App() {
+  const [count, setCount] = useState(0)
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4 font-sans">
+      <div className="flex items-center gap-3 mb-8">
+        <Sparkles className="text-indigo-500" size={32} />
+        <h1 className="text-4xl font-bold">Vite + React</h1>
+      </div>
+      <div className="bg-zinc-900 p-8 rounded-xl border border-zinc-800 shadow-xl text-center max-w-md w-full">
+        <button 
+          onClick={() => setCount((count) => count + 1)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg font-semibold transition-all w-full mb-4"
+        >
+          count is {count}
+        </button>
+        <p className="text-zinc-500">
+          Edit <code>src/App.jsx</code> and save to test HMR
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export default App`
+        },
+        { path: 'src/index.css', content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;` }
+      ];
+
+    case 'node-express':
+      return [
+        ...setupProject('express-api', 'typescript'),
+        {
+          path: 'package.json',
+          content: JSON.stringify({
+            name: "express-api",
+            version: "1.0.0",
+            main: "dist/index.js",
+            scripts: { "start": "node dist/index.js", "dev": "ts-node src/index.ts" },
+            dependencies: { "express": "^4.18.2", "cors": "^2.8.5", "dotenv": "^16.4.0" },
+            devDependencies: { "@types/express": "^4.17.21", "typescript": "^5.3.0" }
+          }, null, 2)
+        },
+        {
+          path: 'src/index.ts',
+          content: `import express from 'express';
+import cors from 'cors';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to the OmniGen Express API', timestamp: new Date() });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.listen(PORT, () => {
+  console.log(\`Server running on http://localhost:\${PORT}\`);
+});`
+        }
+      ];
+    
+    case 'python-flask':
+      return [
+        ...setupProject('flask-app', 'python'),
+        {
+          path: 'requirements.txt',
+          content: `flask==3.0.0\ngunicorn==21.2.0`
+        },
+        {
+          path: 'app.py',
+          content: `from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return jsonify({
+        "message": "Hello from Flask!",
+        "status": "running"
+    })
+
+@app.route('/api/data')
+def get_data():
+    return jsonify({
+        "items": [1, 2, 3, 4, 5],
+        "source": "OmniGen"
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)`
+        }
+      ];
+
+    case 'html-css':
+      return [
+        {
+          path: 'index.html',
+          content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanilla App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Hello World</h1>
+        <p id="counter">Count: 0</p>
+        <button id="btn">Increment</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>`
+        },
+        {
+          path: 'style.css',
+          content: `body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+.container {
+    text-align: center;
+    padding: 2rem;
+    border: 1px solid #333;
+    border-radius: 10px;
+    background: #1e1e1e;
+}
+button {
+    padding: 10px 20px;
+    background: #6200ee;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button:hover {
+    background: #3700b3;
+}`
+        },
+        {
+          path: 'script.js',
+          content: `let count = 0;
+const btn = document.getElementById('btn');
+const display = document.getElementById('counter');
+
+btn.addEventListener('click', () => {
+    count++;
+    display.innerText = 'Count: ' + count;
+});`
+        }
+      ];
+
+    default:
+      return basicFiles;
+  }
+};

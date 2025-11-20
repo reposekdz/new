@@ -24,8 +24,6 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     You do not need to output this reasoning text, but the **CODE MUST REFLECT THESE DECISIONS**.
   `;
 
-  // --- PROTOCOLS ---
-
   const MOBILE_PROTOCOL = `
     ### 📱 MOBILE ARCHITECTURE PROTOCOL (REACT NATIVE)
     The user requested a **MOBILE** application.
@@ -36,10 +34,6 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     3.  **Styling**: Use \`StyleSheet.create({ ... })\` or inline styles. Do not use CSS files.
     4.  **Navigation**: Structure using \`expo-router\` (app directory) or \`@react-navigation/native\`.
     5.  **Icons**: Use \`@expo/vector-icons\`.
-    6.  **Structure**:
-        - \`app/\`: Screens/Routes (if using Expo Router).
-        - \`components/\`: Reusable UI (Buttons, Cards).
-        - \`constants/\`: Colors, Layouts.
   `;
 
   const DESKTOP_PROTOCOL = `
@@ -51,7 +45,6 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
         - \`electron/preload.ts\`: The preload script (contextBridge).
         - \`src/\`: The renderer process (React App).
     3.  **IPC**: Use \`ipcMain\` and \`ipcRenderer\` via \`window.electronAPI\` context bridge for security.
-    4.  **Config**: Ensure \`package.json\` points "main" to the compiled electron entry.
   `;
 
   const WEB_PROTOCOL = `
@@ -70,8 +63,6 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     3.  **CI/CD**: If appropriate for the complexity, suggest a \`.github/workflows/ci.yml\`.
   `;
 
-  // --- LANGUAGE SPECIFICS ---
-  
   const LANGUAGE_RULES = {
     python: `
       - Use **Flask** or **FastAPI** for backends.
