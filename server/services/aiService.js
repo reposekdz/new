@@ -84,14 +84,19 @@ const setupProject = (files, prompt) => {
         "build": "vite build",
         "preview": "vite preview",
         "test": "vitest",
-        "lint": "eslint ."
+        "lint": "eslint .",
+        "server": "node server/index.js"
       },
       dependencies: {
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "lucide-react": "^0.344.0",
         "clsx": "^2.1.0",
-        "tailwind-merge": "^2.2.1"
+        "tailwind-merge": "^2.2.1",
+        "express": "^4.18.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "jsonwebtoken": "^9.0.2"
       },
       devDependencies: {
         "@vitejs/plugin-react": "^4.2.1",
@@ -99,7 +104,8 @@ const setupProject = (files, prompt) => {
         "vitest": "^1.3.1",
         "tailwindcss": "^3.4.1",
         "autoprefixer": "^10.4.18",
-        "postcss": "^8.4.35"
+        "postcss": "^8.4.35",
+        "@types/express": "^4.17.21"
       }
     };
     newFiles.push({ path: 'package.json', content: JSON.stringify(pkg, null, 2) });
@@ -109,9 +115,9 @@ const setupProject = (files, prompt) => {
 };
 
 // --- MAIN FUNCTION: GENERATE APP ---
-const generateApp = async ({ userPrompt, model, attachments = [], currentFiles = [], history = [] }) => {
+const generateApp = async ({ userPrompt, model, attachments = [], currentFiles = [], history = [], generationType = 'frontend' }) => {
   const isModification = currentFiles.length > 0 || history.length > 0;
-  const systemInstruction = getSystemInstruction(isModification);
+  const systemInstruction = getSystemInstruction(isModification, generationType);
   
   // Construct Context
   let promptContext = `User Request: ${userPrompt}\n\n`;

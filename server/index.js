@@ -79,7 +79,7 @@ app.get('/health', (req, res) => {
 
 app.post('/api/generate', async (req, res, next) => {
   try {
-    const { prompt, model, attachments, currentFiles, history } = req.body;
+    const { prompt, model, attachments, currentFiles, history, generationType } = req.body;
     
     if (!prompt && (!attachments || attachments.length === 0)) {
       return res.status(400).json({ error: "Prompt or attachments required" });
@@ -90,7 +90,8 @@ app.post('/api/generate', async (req, res, next) => {
       model,
       attachments,
       currentFiles,
-      history
+      history,
+      generationType
     });
 
     res.json(generatedFiles);

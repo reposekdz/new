@@ -5,6 +5,7 @@ export interface GeneratedFile {
 }
 
 export type AIModel = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
+export type GenerationType = 'frontend' | 'fullstack';
 
 export interface Attachment {
   name: string;

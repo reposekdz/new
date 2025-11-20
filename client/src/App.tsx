@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings } from './types';
+import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, GenerationType } from './types';
 import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo } from './services/geminiService';
 import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
@@ -16,7 +16,7 @@ import {
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command, LogIn, UserCircle, CheckCircle
+  Github, FolderUp, Keyboard, Command, LogIn, UserCircle, CheckCircle, Layers, Server
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -60,6 +60,7 @@ const App: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState("");
   const [landingPrompt, setLandingPrompt] = useState("");
   const [landingAttachments, setLandingAttachments] = useState<Attachment[]>([]);
+  const [generationType, setGenerationType] = useState<GenerationType>('frontend');
   
   // Refs
   const landingFileRef = useRef<HTMLInputElement>(null);
@@ -307,10 +308,10 @@ const App: React.FC = () => {
         const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
         setMessages([userMsg]);
 
-        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, []);
+        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], generationType);
         setFiles(generatedFiles);
         
-        setMessages(prev => [...prev, { role: 'model', text: "Project generated successfully.", timestamp: Date.now() }]);
+        setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${generationType} mode).`, timestamp: Date.now() }]);
 
         if (generatedFiles.length > 0) {
             const entry = generatedFiles.find(f => f.path === 'index.html') || generatedFiles[0];
@@ -334,7 +335,7 @@ const App: React.FC = () => {
       setMessages(prev => [...prev, userMsg]);
 
       try {
-          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages);
+          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, generationType);
           setFiles(updatedFiles);
           
           if (selectedFile) {
@@ -572,6 +573,23 @@ const App: React.FC = () => {
                 {/* 1. NEW PROJECT */}
                 {landingTab === 'new' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        
+                        {/* Generation Type Toggle */}
+                        <div className="flex items-center justify-center gap-4 mb-2 py-2">
+                             <button 
+                                onClick={() => setGenerationType('frontend')}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${generationType === 'frontend' ? 'bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-500/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                             >
+                                <Layers size={12} /> Frontend Only
+                             </button>
+                             <button 
+                                onClick={() => setGenerationType('fullstack')}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${generationType === 'fullstack' ? 'bg-purple-500/10 text-purple-300 ring-1 ring-purple-500/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                             >
+                                <Server size={12} /> Fullstack + Auth
+                             </button>
+                        </div>
+
                         {landingAttachments.length > 0 && (
                             <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
                                 {landingAttachments.map((att, idx) => (
@@ -587,7 +605,9 @@ const App: React.FC = () => {
                             value={landingPrompt}
                             onChange={(e) => setLandingPrompt(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
-                            placeholder="Describe your dream application... (e.g., 'A SaaS Dashboard with Auth and Stripe')"
+                            placeholder={generationType === 'fullstack' 
+                                ? "Describe your fullstack app (e.g. 'A secure E-commerce platform with Stripe and Admin Dashboard')..." 
+                                : "Describe your frontend interface... (e.g. 'A modern landing page for a coffee shop')"}
                             className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
                         />
                         <div className="flex items-center justify-between px-4 pb-2">
@@ -917,6 +937,7 @@ const App: React.FC = () => {
             {files.length > 0 && <span>• {files.length} files</span>}
             <span>• {settings.model}</span>
             {user && <span className="text-indigo-400">• Auth: Active</span>}
+            {generationType === 'fullstack' && <span className="text-purple-400">• Fullstack Mode</span>}
         </div>
         <div className="flex gap-4 font-mono opacity-70">
              <span className="hidden md:inline">CTRL+B Explorer</span>
