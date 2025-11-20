@@ -21,7 +21,8 @@ const IGNORED_EXTS = new Set([
     '.zip', '.tar', '.gz', '.7z', '.rar',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx',
     '.exe', '.dll', '.so', '.dylib', '.bin',
-    '.class', '.jar', '.pyc', '.o', '.a'
+    '.class', '.jar', '.pyc', '.o', '.a',
+    '.lock', '.json.lock'
 ]);
 
 /**
