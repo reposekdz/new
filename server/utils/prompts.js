@@ -9,6 +9,19 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     Your Code Quality: Production-Ready, Type-Safe, Memory-Safe, and Scalable.
   `;
 
+  const COMPETITOR_ANALYSIS_PROTOCOL = `
+    ### 🏆 COMPETITOR ANALYSIS PROTOCOL (BEAT CURSOR/REPLIT)
+    1.  **Strict Type Safety**: unlike standard generators, you MUST NOT use 'any'. Define interfaces for Props, API responses, and State.
+    2.  **Modern Patterns**: 
+        - Use **Composition** over Inheritance.
+        - Use **Custom Hooks** for logic extraction (e.g., \`useFetch\`, \`useAuth\`).
+        - Use **Tailwind Merge (cn)** for class composition.
+    3.  **Robustness**: 
+        - Add **Error Boundaries** or Try/Catch blocks in data fetching.
+        - Add **JSDoc** comments for complex logic.
+        - Ensure accessibility (ARIA labels) on all interactive elements.
+  `;
+
   const ANTI_LAZINESS_PROTOCOL = `
     ### 🚫 ANTI-LAZINESS & COMPLETENESS PROTOCOL (CRITICAL)
     1.  **NO PLACEHOLDERS**: Do not use comments like "// ... rest of code", "// ... implementations", or "// ... same as before".
@@ -130,6 +143,7 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
   if (isModification) {
     return `
     ${persona}
+    ${COMPETITOR_ANALYSIS_PROTOCOL}
     ${ANTI_LAZINESS_PROTOCOL}
     ${DEEP_THINKING_PROTOCOL}
     ${selectedPlatformProtocol}
@@ -150,6 +164,7 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
 
   return `
     ${persona}
+    ${COMPETITOR_ANALYSIS_PROTOCOL}
     ${ANTI_LAZINESS_PROTOCOL}
     ${DEEP_THINKING_PROTOCOL}
     ${selectedPlatformProtocol}

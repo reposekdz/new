@@ -18,12 +18,15 @@ const analyzeComplexity = (prompt) => {
         'authentication', 'authorization', 'oauth', 'jwt', 'redux', 'zustand',
         'mobile', 'react native', 'expo', 'electron', 'rust', 'c++',
         'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace', '3d', 'three.js',
-        'vim', 'neovim', 'plugin', 'extension'
+        'vim', 'neovim', 'plugin', 'extension', 'template', 'scaffold', 'new project'
     ];
     
     let score = 0;
     if (prompt.length > 200) score += 1;
     if (prompt.toLowerCase().includes('full stack') || prompt.toLowerCase().includes('complete')) score += 1;
+    
+    // Scaffolding a new project is critical, always use Pro
+    if (prompt.toLowerCase().includes('new project') || prompt.toLowerCase().includes('scaffold')) score += 5;
 
     highTierKeywords.forEach(kw => {
         if (prompt.toLowerCase().includes(kw)) score += 2;
@@ -132,7 +135,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   // Enable Deep Thinking Budget for complex tasks
   if (isThinkingModel && (isComplex || effectiveModel.includes('pro'))) {
        // Maximize reasoning for Pro model to beat competitors
-       const budget = isComplex ? 16384 : 4096; 
+       const budget = isComplex ? 16384 : 8192; 
        config.thinkingConfig = { thinkingBudget: budget };
        console.log(`[AI] Deep Thinking Enabled: Budget ${budget}`);
   }

@@ -1,5 +1,5 @@
 
-import { GeneratedFile, AIModel, Attachment, ChatMessage, GenerationType, Platform, ProgrammingLanguage } from "../types";
+import { GeneratedFile, AIModel, Attachment, ChatMessage, Platform, ProgrammingLanguage } from "../types";
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -108,78 +108,207 @@ export const getTemplateBoilerplate = (templateId: string): GeneratedFile[] => {
         {
           path: 'package.json',
           content: JSON.stringify({
-            name: "react-vite-app",
-            version: "1.0.0",
-            dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "lucide-react": "^0.300.0" },
-            scripts: { "dev": "vite", "build": "vite build", "preview": "vite preview" }
+            name: "omnigen-react-app",
+            private: true,
+            version: "0.1.0",
+            type: "module",
+            scripts: {
+              "dev": "vite",
+              "build": "tsc && vite build",
+              "preview": "vite preview"
+            },
+            dependencies: {
+              "react": "^18.2.0",
+              "react-dom": "^18.2.0",
+              "lucide-react": "^0.344.0",
+              "clsx": "^2.1.0",
+              "tailwind-merge": "^2.2.1"
+            },
+            devDependencies: {
+              "@types/react": "^18.2.64",
+              "@types/react-dom": "^18.2.21",
+              "@vitejs/plugin-react": "^4.2.1",
+              "typescript": "^5.2.2",
+              "vite": "^5.1.6",
+              "autoprefixer": "^10.4.18",
+              "postcss": "^8.4.35",
+              "tailwindcss": "^3.4.1"
+            }
           }, null, 2)
         },
         {
-          path: 'index.html',
-          content: `<!DOCTYPE html>
+          path: 'vite.config.ts',
+          content: `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});`
+        },
+        {
+            path: 'index.html',
+            content: `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>React App</title>
+    <title>OmniGen App</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              border: "hsl(var(--border))",
+              input: "hsl(var(--input))",
+              ring: "hsl(var(--ring))",
+              background: "hsl(var(--background))",
+              foreground: "hsl(var(--foreground))",
+              primary: {
+                DEFAULT: "hsl(var(--primary))",
+                foreground: "hsl(var(--primary-foreground))",
+              },
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>`
         },
         {
-          path: 'src/main.jsx',
+            path: 'src/lib/utils.ts',
+            content: `import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}`
+        },
+        {
+          path: 'src/main.tsx',
           content: `import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import App from './App.tsx'
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
 )`
         },
         {
-          path: 'src/App.jsx',
-          content: `import React, { useState } from 'react'
-import { Sparkles } from 'lucide-react'
+          path: 'src/components/Header.tsx',
+          content: `import React from 'react';
+import { Sparkles, Github, Menu } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+export const Header = () => (
+  <header className="h-16 border-b border-white/10 bg-zinc-950/50 backdrop-blur-xl fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6">
+    <div className="flex items-center gap-2 text-indigo-400 font-bold text-xl">
+      <div className="p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+         <Sparkles size={20} />
+      </div>
+      <span>OmniGen</span>
+    </div>
+    <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
+      <a href="#" className="hover:text-white transition-colors">Features</a>
+      <a href="#" className="hover:text-white transition-colors">Docs</a>
+      <a href="#" className="hover:text-white transition-colors">Pricing</a>
+    </nav>
+    <div className="flex items-center gap-4">
+        <a href="#" className="text-zinc-400 hover:text-white"><Github size={20} /></a>
+        <button className="md:hidden text-zinc-400"><Menu size={24} /></button>
+    </div>
+  </header>
+);`
+        },
+        {
+            path: 'src/App.tsx',
+            content: `import React, { useState } from 'react';
+import { Header } from './components/Header';
+import { ArrowRight, Code2, Zap, Shield } from 'lucide-react';
+import { cn } from './lib/utils';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [count, setCount] = useState(0);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4 font-sans">
-      <div className="flex items-center gap-3 mb-8">
-        <Sparkles className="text-indigo-500" size={32} />
-        <h1 className="text-4xl font-bold">Vite + React</h1>
-      </div>
-      <div className="bg-zinc-900 p-8 rounded-xl border border-zinc-800 shadow-xl text-center max-w-md w-full">
-        <button 
-          onClick={() => setCount((count) => count + 1)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg font-semibold transition-all w-full mb-4"
-        >
-          count is {count}
-        </button>
-        <p className="text-zinc-500">
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-indigo-500/30">
+      <Header />
+      
+      <main className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
+        {/* Hero Section */}
+        <div className="text-center max-w-3xl mx-auto mb-24">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span className="text-xs font-medium text-zinc-300 tracking-wide uppercase">v2.0 Now Available</span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 drop-shadow-sm pb-2">
+            Build the future, faster.
+          </h1>
+          
+          <p className="text-lg text-zinc-400 mb-10 leading-relaxed">
+             A production-ready template configured with React 18, TypeScript, Tailwind CSS, and best practices. 
+             Start editing <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-400">src/App.tsx</code> to see magic happen.
+          </p>
+          
+          <div className="flex items-center justify-center gap-4">
+            <button 
+                onClick={() => setCount(c => c + 1)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2 active:scale-95"
+            >
+                Interactive Counter: {count}
+            </button>
+            <button className="bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 px-8 py-3 rounded-xl font-semibold transition-all flex items-center gap-2">
+                Read Documentation <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-3 gap-6">
+            {[
+                { icon: Zap, title: "Vite Powered", desc: "Instant server start and lightning fast HMR." },
+                { icon: Shield, title: "Type Safe", desc: "Strict TypeScript configuration for robust code." },
+                { icon: Code2, title: "Modern Stack", desc: "React 18 + Tailwind CSS + Lucide Icons." }
+            ].map((feature, i) => (
+                <div key={i} className="p-6 rounded-2xl bg-zinc-900/30 border border-white/5 hover:bg-zinc-900/50 transition-colors">
+                    <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-4 text-indigo-400 border border-indigo-500/20">
+                        <feature.icon size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
+                    <p className="text-zinc-500 leading-relaxed">{feature.desc}</p>
+                </div>
+            ))}
+        </div>
+      </main>
     </div>
   )
 }
 
-export default App`
+export default App;`
         },
-        { path: 'src/index.css', content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;` }
+        { path: 'src/index.css', content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nhtml, body { scroll-behavior: smooth; }` }
       ];
 
     case 'saas-dashboard':
+      // ... (Keep existing SaaS template but ensure it uses setupProject basics if needed)
       return [
-        ...basicFiles,
+        ...setupProject('saas-dashboard', 'typescript'),
         {
           path: 'package.json',
           content: JSON.stringify({
@@ -248,20 +377,20 @@ export default function App() {
       ];
 
     case '3d-game':
-      return [
-         ...basicFiles,
-         {
-            path: 'package.json',
-            content: JSON.stringify({
-              name: "r3f-game",
-              dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "three": "^0.160.0", "@react-three/fiber": "^8.15.0", "@react-three/drei": "^9.99.0" },
-              scripts: { "dev": "vite", "build": "vite build" }
-            }, null, 2)
-         },
-         { path: 'index.html', content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><title>3D Game</title><style>body, html, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }</style></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>` },
-         {
-            path: 'src/main.jsx',
-            content: `import { createRoot } from 'react-dom/client'
+        return [
+            ...setupProject('r3f-game', 'javascript'),
+            {
+               path: 'package.json',
+               content: JSON.stringify({
+                 name: "r3f-game",
+                 dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "three": "^0.160.0", "@react-three/fiber": "^8.15.0", "@react-three/drei": "^9.99.0" },
+                 scripts: { "dev": "vite", "build": "vite build" }
+               }, null, 2)
+            },
+            { path: 'index.html', content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><title>3D Game</title><style>body, html, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }</style></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>` },
+            {
+               path: 'src/main.jsx',
+               content: `import { createRoot } from 'react-dom/client'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useRef, useState } from 'react'
 
@@ -295,26 +424,26 @@ createRoot(document.getElementById('root')).render(
     <Box position={[1.2, 0, 0]} />
   </Canvas>,
 )`
-         }
-      ];
-
+            }
+         ];
+    
     case 'node-express':
-      return [
-        ...setupProject('express-api', 'typescript'),
-        {
-          path: 'package.json',
-          content: JSON.stringify({
-            name: "express-api",
-            version: "1.0.0",
-            main: "dist/index.js",
-            scripts: { "start": "node dist/index.js", "dev": "ts-node src/index.ts" },
-            dependencies: { "express": "^4.18.2", "cors": "^2.8.5", "dotenv": "^16.4.0" },
-            devDependencies: { "@types/express": "^4.17.21", "typescript": "^5.3.0" }
-          }, null, 2)
-        },
-        {
-          path: 'src/index.ts',
-          content: `import express from 'express';
+        return [
+            ...setupProject('express-api', 'typescript'),
+            {
+              path: 'package.json',
+              content: JSON.stringify({
+                name: "express-api",
+                version: "1.0.0",
+                main: "dist/index.js",
+                scripts: { "start": "node dist/index.js", "dev": "ts-node src/index.ts" },
+                dependencies: { "express": "^4.18.2", "cors": "^2.8.5", "dotenv": "^16.4.0" },
+                devDependencies: { "@types/express": "^4.17.21", "typescript": "^5.3.0" }
+              }, null, 2)
+            },
+            {
+              path: 'src/index.ts',
+              content: `import express from 'express';
 import cors from 'cors';
 
 const app = express();
@@ -334,9 +463,9 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(\`Server running on http://localhost:\${PORT}\`);
 });`
-        }
-      ];
-    
+            }
+          ];
+
     default:
       return basicFiles;
   }
