@@ -6,6 +6,10 @@ export interface GeneratedFile {
 
 export type AIModel = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
 export type GenerationType = 'frontend' | 'fullstack';
+export type Platform = 'web' | 'mobile' | 'desktop';
+export type ProgrammingLanguage = 
+  | 'javascript' | 'typescript' | 'python' | 'rust' | 'go' | 'java' | 'csharp' 
+  | 'cpp' | 'php' | 'swift' | 'kotlin' | 'ruby' | 'html/css';
 
 export interface Attachment {
   name: string;
@@ -24,6 +28,8 @@ export interface ChatMessage {
 export interface AppSettings {
   projectName: string;
   model: AIModel;
+  defaultPlatform: Platform;
+  defaultLanguage: ProgrammingLanguage;
   editorFontSize: number;
   autoSave: boolean;
   vimMode: boolean;

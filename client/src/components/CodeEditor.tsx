@@ -2,14 +2,17 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import { GeneratedFile } from '../types';
-import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch } from 'lucide-react';
+import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch, Keyboard } from 'lucide-react';
 import { getSnippetsForLanguage } from '../utils/snippetLibrary';
+// @ts-ignore - Dynamic import handling for CDN
+import { initVimMode } from 'monaco-vim';
 
 interface CodeEditorProps {
   file: GeneratedFile | null;
   onChange: (newContent: string) => void;
   fontSize: number;
   onAIAction: (action: string, filePath: string, code: string) => void;
+  vimMode?: boolean;
 }
 
 const getLanguageFromPath = (path: string): string => {
@@ -46,13 +49,19 @@ const getLanguageFromPath = (path: string): string => {
   }
 };
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction }) => {
+const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction, vimMode = false }) => {
   const language = useMemo(() => file ? getLanguageFromPath(file.path) : 'plaintext', [file]);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const [displayContent, setDisplayContent] = useState("");
   const [showAiMenu, setShowAiMenu] = useState(false);
+  
   const monacoRef = useRef<Monaco | null>(null);
+  const editorRef = useRef<any>(null);
   const completionDisposableRef = useRef<any>(null);
+  
+  // VIM Refs
+  const vimModeRef = useRef<any>(null);
+  const statusNodeRef = useRef<HTMLDivElement>(null);
 
   // Configure Monaco
   loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
@@ -77,12 +86,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
   // Register Snippets when language or monaco instance changes
   useEffect(() => {
       if (monacoRef.current && language) {
-          // Dispose previous provider to avoid duplicates
           if (completionDisposableRef.current) {
               completionDisposableRef.current.dispose();
           }
-
-          // Register new provider
           completionDisposableRef.current = monacoRef.current.languages.registerCompletionItemProvider(language, {
               provideCompletionItems: (model, position) => {
                   const snippets = getSnippetsForLanguage(monacoRef.current, language);
@@ -90,16 +96,44 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
               }
           });
       }
-
       return () => {
-          if (completionDisposableRef.current) {
-              completionDisposableRef.current.dispose();
-          }
+          if (completionDisposableRef.current) completionDisposableRef.current.dispose();
       };
   }, [language]);
 
+  // Handle VIM Mode Toggle
+  useEffect(() => {
+      if (!editorRef.current || !statusNodeRef.current) return;
+
+      if (vimMode) {
+          if (!vimModeRef.current) {
+              try {
+                  // Initialize VIM mode attached to the editor and status bar
+                  vimModeRef.current = initVimMode(editorRef.current, statusNodeRef.current);
+                  console.log('VIM Mode Enabled');
+              } catch (e) {
+                  console.error("Failed to initialize VIM mode. Ensure monaco-vim is loaded.", e);
+              }
+          }
+      } else {
+          if (vimModeRef.current) {
+              vimModeRef.current.dispose();
+              vimModeRef.current = null;
+              console.log('VIM Mode Disabled');
+          }
+      }
+      
+      return () => {
+          if (vimModeRef.current) {
+              vimModeRef.current.dispose();
+              vimModeRef.current = null;
+          }
+      }
+  }, [vimMode, editorRef.current]);
+
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
       monacoRef.current = monaco;
+      editorRef.current = editor;
   };
 
   const handleAction = (action: string) => {
@@ -113,7 +147,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative animate-in fade-in duration-300 group">
       
-      {/* AI Floating Action Button (Visible on hover of editor area) */}
+      {/* AI Floating Action Button */}
       <div className="absolute top-4 right-8 z-10">
         <div className="relative">
             <button 
@@ -167,17 +201,26 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
             formatOnType: true,
             formatOnPaste: true,
             tabSize: 2,
-            snippetSuggestions: 'top', // Ensure our snippets show up high
+            snippetSuggestions: 'top', 
+            cursorBlinking: vimMode ? 'solid' : 'blink',
+            cursorStyle: vimMode ? 'block' : 'line',
           }}
         />
       </div>
 
-      {/* Status Bar */}
-      <div className="h-6 bg-[#007acc] flex items-center px-3 justify-between text-[10px] text-white shrink-0 select-none">
+      {/* VIM Status Bar (Visible only when VIM mode enabled) */}
+      <div 
+          ref={statusNodeRef} 
+          className={`${vimMode ? 'block' : 'hidden'} border-t border-zinc-700`}
+      ></div>
+
+      {/* Standard Status Bar */}
+      <div className="h-6 bg-[#007acc] flex items-center px-3 justify-between text-[10px] text-white shrink-0 select-none z-20">
         <div className="flex items-center gap-4">
             <span className="font-bold">{language.toUpperCase()}</span>
             <span>UTF-8</span>
             <span>{fontSize}px</span>
+            {vimMode && <span className="flex items-center gap-1 bg-white/20 px-1.5 rounded text-[9px] font-bold"><Keyboard size={8}/> VIM</span>}
         </div>
         
         <div className="flex items-center gap-2">

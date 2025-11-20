@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { X, Settings, Cpu, Type, Save, Zap, Box } from 'lucide-react';
-import { AppSettings } from '../types';
+import { X, Settings, Cpu, Type, Save, Zap, Box, Smartphone, Monitor, Globe, Code2 } from 'lucide-react';
+import { AppSettings, Platform, ProgrammingLanguage } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -45,57 +45,56 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             />
           </div>
 
-          {/* AI Model */}
+          {/* AI Model Dropdown */}
           <div className="space-y-2">
              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
                 <Cpu size={14} /> Intelligence Engine
              </label>
-             <div className="grid grid-cols-1 gap-2">
-                <button 
-                    onClick={() => onUpdateSettings({ ...settings, model: 'gemini-2.5-flash' })}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-all ${
-                        settings.model === 'gemini-2.5-flash' 
-                        ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-200' 
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                    }`}
-                >
-                    <div>
-                        <div className="font-medium text-sm">Gemini 2.5 Flash</div>
-                        <div className="text-[10px] opacity-70">Latency-Optimized • Quick Iterations</div>
-                    </div>
-                    {settings.model === 'gemini-2.5-flash' && <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>}
-                </button>
-                <button 
-                    onClick={() => onUpdateSettings({ ...settings, model: 'gemini-3-pro-preview' })}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-all ${
-                        settings.model === 'gemini-3-pro-preview' 
-                        ? 'bg-purple-500/10 border-purple-500/50 text-purple-200' 
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                    }`}
-                >
-                    <div>
-                        <div className="font-medium text-sm">Gemini 3.0 Pro (God Mode)</div>
-                        <div className="text-[10px] opacity-70">Deep Reasoning • Architecture • Complex Logic</div>
-                    </div>
-                    {settings.model === 'gemini-3-pro-preview' && <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>}
-                </button>
-             </div>
+             <select
+                value={settings.model}
+                onChange={(e) => onUpdateSettings({ ...settings, model: e.target.value as any })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/50"
+             >
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast & Efficient)</option>
+                <option value="gemini-3-pro-preview">Gemini 3.0 Pro (Deep Reasoning Architect)</option>
+             </select>
+             <p className="text-[10px] text-zinc-500 px-1">
+                Select 3.0 Pro for complex architectures like Microservices or React Native.
+             </p>
           </div>
 
-          {/* Capabilities Info */}
-          <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
-              <div className="flex items-center gap-2 text-zinc-300 text-xs font-bold mb-2">
-                  <Zap size={12} className="text-amber-400" /> 
-                  Supported Capabilities
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-zinc-500">
-                  <span>• Full-Stack Web (React, Node)</span>
-                  <span>• Game Dev (C++, Unreal, Unity)</span>
-                  <span>• Data Science (Python, PyTorch)</span>
-                  <span>• Systems (Rust, Go, C)</span>
-                  <span>• Mobile (Swift, Kotlin)</span>
-                  <span>• Cloud (Docker, K8s, AWS)</span>
-              </div>
+          {/* Defaults */}
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
+                    <Monitor size={12} /> Default Platform
+                </label>
+                <select
+                    value={settings.defaultPlatform || 'web'}
+                    onChange={(e) => onUpdateSettings({ ...settings, defaultPlatform: e.target.value as Platform })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none"
+                >
+                    <option value="web">Web Application</option>
+                    <option value="mobile">Mobile (React Native)</option>
+                    <option value="desktop">Desktop (Electron)</option>
+                </select>
+             </div>
+             <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
+                    <Code2 size={12} /> Default Language
+                </label>
+                <select
+                    value={settings.defaultLanguage || 'typescript'}
+                    onChange={(e) => onUpdateSettings({ ...settings, defaultLanguage: e.target.value as ProgrammingLanguage })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none"
+                >
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="rust">Rust</option>
+                    <option value="go">Go</option>
+                </select>
+             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

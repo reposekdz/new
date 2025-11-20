@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, GenerationType } from './types';
+import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings, GenerationType, Platform, ProgrammingLanguage } from './types';
 import { generateAppCode, runCodeSimulation, setupProject, importGithubRepo } from './services/geminiService';
 import { logger } from './services/logger';
 import FileExplorer from './components/FileExplorer';
@@ -16,7 +16,7 @@ import {
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command, LogIn, UserCircle, CheckCircle, Layers, Server
+  Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Layers, Server, GitBranch
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -24,6 +24,8 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({
       projectName: 'omnigen-app',
       model: 'gemini-2.5-flash',
+      defaultPlatform: 'web',
+      defaultLanguage: 'typescript',
       editorFontSize: 14,
       autoSave: true,
       vimMode: false
@@ -50,7 +52,6 @@ const App: React.FC = () => {
         const saved = localStorage.getItem('omnigen_search_history');
         return saved ? JSON.parse(saved) : [];
       } catch (e) {
-        logger.error("Failed to load search history", e);
         return [];
       }
   });
@@ -60,7 +61,10 @@ const App: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState("");
   const [landingPrompt, setLandingPrompt] = useState("");
   const [landingAttachments, setLandingAttachments] = useState<Attachment[]>([]);
-  const [generationType, setGenerationType] = useState<GenerationType>('frontend');
+  
+  // Advanced Selections
+  const [platform, setPlatform] = useState<Platform>('web');
+  const [language, setLanguage] = useState<ProgrammingLanguage>('typescript');
   
   // Refs
   const landingFileRef = useRef<HTMLInputElement>(null);
@@ -98,6 +102,14 @@ const App: React.FC = () => {
         logger.error("Failed to save search history", e);
       }
   }, [searchHistory]);
+
+  // Apply defaults from settings
+  useEffect(() => {
+      if (!hasStarted) {
+          setPlatform(settings.defaultPlatform);
+          setLanguage(settings.defaultLanguage);
+      }
+  }, [settings.defaultPlatform, settings.defaultLanguage, hasStarted]);
 
   // --- EFFECT: Sync Project Name to package.json ---
   useEffect(() => {
@@ -302,21 +314,21 @@ const App: React.FC = () => {
     
     try {
         // Pre-scaffold basic files while waiting for AI
-        const scaffold = setupProject(settings.projectName);
+        const scaffold = setupProject(settings.projectName, language);
         setFiles(scaffold);
 
         const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
         setMessages([userMsg]);
 
-        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], generationType);
+        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], platform, language);
         setFiles(generatedFiles);
         
-        setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${generationType} mode).`, timestamp: Date.now() }]);
+        setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${platform} / ${language}).`, timestamp: Date.now() }]);
 
         if (generatedFiles.length > 0) {
-            const entry = generatedFiles.find(f => f.path === 'index.html') || generatedFiles[0];
+            const entry = generatedFiles.find(f => f.path === 'index.html' || f.path.endsWith('App.tsx')) || generatedFiles[0];
             setSelectedFile(entry);
-            if (generatedFiles.some(f => f.path === 'index.html')) setActiveTab('preview');
+            if (generatedFiles.some(f => f.path === 'index.html') && platform === 'web') setActiveTab('preview');
         }
     } catch (err: any) {
         logger.error("Initial Generation Failed", err);
@@ -335,7 +347,7 @@ const App: React.FC = () => {
       setMessages(prev => [...prev, userMsg]);
 
       try {
-          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, generationType);
+          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, platform, language);
           setFiles(updatedFiles);
           
           if (selectedFile) {
@@ -445,6 +457,39 @@ const App: React.FC = () => {
 
       if (cmd === 'clear') { setTerminalLogs([]); return; }
       
+      // --- CLIENT-SIDE GIT SIMULATION ---
+      if (cmd === 'git') {
+          const gitAction = args[1];
+          if (!gitAction) {
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: "usage: git <command> [<args>]", timestamp: Date.now() }]);
+              return;
+          }
+          
+          if (gitAction === 'init') {
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: `Initialized empty Git repository in /app/${settings.projectName}/.git/`, timestamp: Date.now() }]);
+              return;
+          }
+          
+          if (gitAction === 'status') {
+              const untracked = files.slice(0, 5).map(f => `\t${f.path}`);
+              const output = `On branch master\n\nNo commits yet\n\nUntracked files:\n  (use "git add <file>..." to include in what will be committed)\n${untracked.join('\n')}\n\nnothing added to commit but untracked files present`;
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: output, timestamp: Date.now() }]);
+              return;
+          }
+          
+          if (gitAction === 'add') {
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: "", timestamp: Date.now() }]);
+              return;
+          }
+
+          if (gitAction === 'commit') {
+              setTerminalLogs(prev => [...prev, { type: 'stdout', content: `[master (root-commit) 1a2b3c] ${args.slice(3).join(' ').replace(/"/g, '') || 'Initial commit'}\n ${files.length} files changed, ${files.reduce((acc, f) => acc + f.content.split('\n').length, 0)} insertions(+)`, timestamp: Date.now() }]);
+              return;
+          }
+          
+          // Fallback for other git commands to the AI Simulator
+      }
+
       setIsRunning(true);
       try {
           const output = await runCodeSimulation(files, command);
@@ -501,7 +546,7 @@ const App: React.FC = () => {
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-        {/* Header overlay for landing - HIGH Z-INDEX to fix visibility */}
+        {/* Header overlay for landing */}
         <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[100] w-full pointer-events-none">
             <div className="flex items-center gap-2 pointer-events-auto">
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -539,7 +584,7 @@ const App: React.FC = () => {
             OmniGen
           </h1>
           <p className="text-lg text-zinc-400 mb-10 max-w-xl leading-relaxed">
-            The universal AI software architect. Build complex apps with full-stack reasoning, security, and scale.
+            The universal AI software architect. Build Web, Mobile, and Desktop applications in any language.
           </p>
 
           {/* --- INTERACTIVE INPUT AREA --- */}
@@ -574,19 +619,25 @@ const App: React.FC = () => {
                 {landingTab === 'new' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         
-                        {/* Generation Type Toggle */}
-                        <div className="flex items-center justify-center gap-4 mb-2 py-2">
+                        {/* Platform Toggle */}
+                        <div className="flex items-center justify-center gap-1 mb-2 py-2 border-b border-zinc-800/50">
                              <button 
-                                onClick={() => setGenerationType('frontend')}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${generationType === 'frontend' ? 'bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-500/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                                onClick={() => setPlatform('web')}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${platform === 'web' ? 'bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-500/50 shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
                              >
-                                <Layers size={12} /> Frontend Only
+                                <Globe size={14} /> Web App
                              </button>
                              <button 
-                                onClick={() => setGenerationType('fullstack')}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${generationType === 'fullstack' ? 'bg-purple-500/10 text-purple-300 ring-1 ring-purple-500/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                                onClick={() => setPlatform('mobile')}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${platform === 'mobile' ? 'bg-purple-500/10 text-purple-300 ring-1 ring-purple-500/50 shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
                              >
-                                <Server size={12} /> Fullstack + Auth
+                                <Smartphone size={14} /> Mobile (Expo)
+                             </button>
+                             <button 
+                                onClick={() => setPlatform('desktop')}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${platform === 'desktop' ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/50 shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}`}
+                             >
+                                <Monitor size={14} /> Desktop (Electron)
                              </button>
                         </div>
 
@@ -605,25 +656,58 @@ const App: React.FC = () => {
                             value={landingPrompt}
                             onChange={(e) => setLandingPrompt(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
-                            placeholder={generationType === 'fullstack' 
-                                ? "Describe your fullstack app (e.g. 'A secure E-commerce platform with Stripe and Admin Dashboard')..." 
-                                : "Describe your frontend interface... (e.g. 'A modern landing page for a coffee shop')"}
+                            placeholder={
+                                platform === 'mobile' ? "Describe your mobile app (e.g. 'A React Native fitness tracker')..." :
+                                platform === 'desktop' ? "Describe your desktop tool (e.g. 'An Electron system monitor')..." :
+                                "Describe your web application..."
+                            }
                             className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
                         />
-                        <div className="flex items-center justify-between px-4 pb-2">
-                            <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center justify-between px-4 pb-2 gap-2">
+                            <div className="flex items-center gap-2">
+                                {/* Language Selector */}
+                                <div className="relative">
+                                    <select 
+                                        value={language}
+                                        onChange={(e) => setLanguage(e.target.value as ProgrammingLanguage)}
+                                        className="bg-zinc-900 border border-zinc-800 text-xs rounded-md pl-2 pr-6 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors appearance-none cursor-pointer"
+                                    >
+                                        <optgroup label="Web & Scripting">
+                                            <option value="javascript">JavaScript</option>
+                                            <option value="typescript">TypeScript</option>
+                                            <option value="python">Python</option>
+                                            <option value="php">PHP</option>
+                                            <option value="ruby">Ruby</option>
+                                        </optgroup>
+                                        <optgroup label="Systems">
+                                            <option value="rust">Rust</option>
+                                            <option value="go">Go</option>
+                                            <option value="cpp">C++</option>
+                                            <option value="java">Java</option>
+                                            <option value="csharp">C#</option>
+                                        </optgroup>
+                                        <optgroup label="Mobile">
+                                            <option value="swift">Swift</option>
+                                            <option value="kotlin">Kotlin</option>
+                                        </optgroup>
+                                    </select>
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+                                        <Code2 size={10} />
+                                    </div>
+                                </div>
+
                                 <select 
                                     value={settings.model}
                                     onChange={(e) => setSettings({...settings, model: e.target.value as AIModel})}
                                     className="bg-zinc-900 border border-zinc-800 text-xs rounded-md px-2 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors"
                                 >
-                                    <option value="gemini-2.5-flash">⚡ Flash (Fast)</option>
-                                    <option value="gemini-3-pro-preview">🧠 Pro (Reasoning)</option>
+                                    <option value="gemini-2.5-flash">⚡ Flash</option>
+                                    <option value="gemini-3-pro-preview">🧠 Pro</option>
                                 </select>
                                 <div className="relative group/attach">
                                     <input type="file" multiple className="hidden" ref={landingFileRef} onChange={handleLandingFileSelect} />
                                     <button onClick={() => landingFileRef.current?.click()} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-all" title="Attach Images/Files">
-                                        <Paperclip size={18} />
+                                        <Paperclip size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -648,7 +732,7 @@ const App: React.FC = () => {
                                 type="text" 
                                 value={githubUrl}
                                 onChange={(e) => setGithubUrl(e.target.value)}
-                                placeholder="https://github.com/username/repository"
+                                placeholder="https://github.com/username/repository/tree/branch"
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600"
                             />
                         </div>
@@ -661,7 +745,7 @@ const App: React.FC = () => {
                         >
                             Clone Repository
                         </Button>
-                        <p className="text-[10px] text-zinc-500">Supports public repositories. Large repos may take a moment.</p>
+                        <p className="text-[10px] text-zinc-500">Supports public repositories and branches.</p>
                     </div>
                 )}
 
@@ -699,6 +783,10 @@ const App: React.FC = () => {
                <div className="flex items-center gap-2">
                    <Command size={12} />
                    <span><span className="text-zinc-300">/fix</span> to debug</span>
+               </div>
+               <div className="flex items-center gap-2">
+                   <GitBranch size={12} />
+                   <span>Git CLI ready</span>
                </div>
           </div>
 
@@ -880,6 +968,7 @@ const App: React.FC = () => {
                                 onChange={handleFileChange} 
                                 fontSize={settings.editorFontSize}
                                 onAIAction={handleAiAction}
+                                vimMode={settings.vimMode}
                             />
                         </div>
                     </>
@@ -937,7 +1026,7 @@ const App: React.FC = () => {
             {files.length > 0 && <span>• {files.length} files</span>}
             <span>• {settings.model}</span>
             {user && <span className="text-indigo-400">• Auth: Active</span>}
-            {generationType === 'fullstack' && <span className="text-purple-400">• Fullstack Mode</span>}
+            <span className="uppercase tracking-wider text-zinc-400">• {platform} / {language}</span>
         </div>
         <div className="flex gap-4 font-mono opacity-70">
              <span className="hidden md:inline">CTRL+B Explorer</span>

@@ -20,6 +20,24 @@
           -ms-overflow-style: none;
           scrollbar-width: none;
       }
+      /* VIM Status Bar Styling */
+      .vim-status-bar {
+        padding: 0 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        background: #007acc;
+        color: white;
+        height: 24px;
+        display: flex;
+        align-items: center;
+      }
+      .vim-status-bar input {
+        background: transparent;
+        color: white;
+        border: none;
+        outline: none;
+        width: 100%;
+      }
     </style>
   <script type="importmap">
 {
@@ -33,7 +51,8 @@
     "jszip": "https://esm.sh/jszip@3.10.1",
     "react-window": "https://aistudiocdn.com/react-window@^2.2.3",
     "react-virtualized-auto-sizer": "https://aistudiocdn.com/react-virtualized-auto-sizer@^1.0.26",
-    "monaco-editor": "https://aistudiocdn.com/monaco-editor@^0.54.0"
+    "monaco-editor": "https://aistudiocdn.com/monaco-editor@^0.54.0",
+    "monaco-vim": "https://esm.sh/monaco-vim"
   }
 }
 </script>
