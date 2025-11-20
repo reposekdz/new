@@ -8,7 +8,13 @@ const MAX_RETRIES = 2;
 
 // --- HELPER: COMPLEXITY ANALYSIS ---
 const analyzeComplexity = (prompt) => {
-    const complexKeywords = ['architecture', 'backend', 'database', 'auth', 'realtime', 'socket', 'dashboard', 'cms', 'saas', 'enterprise', 'refactor', 'optimize'];
+    const complexKeywords = [
+        'architecture', 'backend', 'database', 'auth', 'realtime', 'socket', 
+        'dashboard', 'cms', 'saas', 'enterprise', 'refactor', 'optimize',
+        'video editor', 'game engine', '3d', 'webgl', 'webgpu', 'three.js',
+        'rust', 'c++', 'cpp', 'assembly', 'cuda', 'ffmpeg', 'ai model',
+        'security', 'encryption', 'blockchain'
+    ];
     const score = complexKeywords.reduce((acc, kw) => prompt.toLowerCase().includes(kw) ? acc + 1 : acc, 0);
     return score > 0;
 };
@@ -48,15 +54,16 @@ const setupProject = (files, prompt) => {
   const promptLower = prompt.toLowerCase();
   const isPython = newFiles.some(f => f.path.endsWith('.py')) || promptLower.includes('python');
   const isRust = newFiles.some(f => f.path.endsWith('.rs')) || promptLower.includes('rust');
-  const isNode = newFiles.some(f => f.path.match(/\.(js|ts|jsx|tsx)$/)) || (!isPython && !isRust);
+  const isCpp = newFiles.some(f => f.path.endsWith('.cpp') || f.path.endsWith('.h')) || promptLower.includes('c++');
+  const isNode = newFiles.some(f => f.path.match(/\.(js|ts|jsx|tsx)$/)) || (!isPython && !isRust && !isCpp);
   const isTypescript = newFiles.some(f => f.path.match(/\.(ts|tsx)$/)) || promptLower.includes('typescript');
-  const isReact = newFiles.some(f => f.content?.includes('react')) || promptLower.includes('react');
 
   // 2. Generate .gitignore if missing
   if (!filePaths.has('.gitignore')) {
     let content = "node_modules/\n.env\n.DS_Store\ndist/\nbuild/\n.vscode/\ncoverage/";
     if (isPython) content += "\n__pycache__/\n*.pyc\nvenv/\n.pytest_cache/";
     if (isRust) content += "\ntarget/\nCargo.lock";
+    if (isCpp) content += "\nbuild/\n*.o\n*.exe\n*.out";
     newFiles.push({ path: '.gitignore', content });
   }
 
@@ -170,7 +177,9 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
   // Config
   const isComplex = analyzeComplexity(userPrompt);
-  const shouldUseThinking = model.includes('pro') || isComplex;
+  // Force Pro model for complex tasks if not explicitly set (or if user is on default)
+  const effectiveModel = (isComplex && model === 'gemini-2.5-flash') ? 'gemini-3-pro-preview' : model;
+  const shouldUseThinking = effectiveModel.includes('pro') || isComplex;
 
   // Prepare Parts
   const parts = [{ text: promptContext }];
@@ -198,7 +207,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
         // but generally one instance is fine if configs are passed in generateContent.
         
         const response = await ai.models.generateContent({
-            model: model || 'gemini-2.5-flash',
+            model: effectiveModel,
             contents: { parts },
             config: {
                 systemInstruction,

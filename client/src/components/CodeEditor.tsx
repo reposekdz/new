@@ -26,9 +26,22 @@ const getLanguageFromPath = (path: string): string => {
     case 'rs': return 'rust';
     case 'go': return 'go';
     case 'java': return 'java';
+    case 'cpp': 
+    case 'c': 
+    case 'h': 
+    case 'hpp': return 'cpp';
+    case 'cs': return 'csharp';
+    case 'php': return 'php';
+    case 'rb': return 'ruby';
+    case 'swift': return 'swift';
+    case 'kt': return 'kotlin';
+    case 'sql': return 'sql';
     case 'md': return 'markdown';
     case 'sh': return 'shell';
-    case 'yaml': return 'yaml';
+    case 'yaml': 
+    case 'yml': return 'yaml';
+    case 'xml': return 'xml';
+    case 'dockerfile': return 'dockerfile';
     default: return 'plaintext';
   }
 };
