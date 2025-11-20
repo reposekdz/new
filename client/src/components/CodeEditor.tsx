@@ -15,6 +15,10 @@ interface CodeEditorProps {
   vimMode?: boolean;
 }
 
+/**
+ * Helper to map file extensions to Monaco Editor language IDs.
+ * This ensures syntax highlighting works correctly for diverse file types.
+ */
 const getLanguageFromPath = (path: string): string => {
   const ext = path.split('.').pop()?.toLowerCase();
   switch (ext) {
@@ -49,41 +53,73 @@ const getLanguageFromPath = (path: string): string => {
   }
 };
 
+/**
+ * CodeEditor Component
+ * 
+ * A wrapper around @monaco-editor/react that provides:
+ * 1. Dynamic language detection based on file extension.
+ * 2. VIM Mode emulation (optional).
+ * 3. Auto-save simulation with debouncing.
+ * 4. AI Action context menu.
+ */
 const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction, vimMode = false }) => {
+  // Memoize language calculation to prevent re-calculation on every render unless file changes
   const language = useMemo(() => file ? getLanguageFromPath(file.path) : 'plaintext', [file]);
+  
   const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const [displayContent, setDisplayContent] = useState("");
   const [showAiMenu, setShowAiMenu] = useState(false);
   
+  // Refs to hold Monaco instances for imperative API access
   const monacoRef = useRef<Monaco | null>(null);
   const editorRef = useRef<any>(null);
   const completionDisposableRef = useRef<any>(null);
   
   // VIM Refs
+  // We track the VIM instance to properly dispose of it when toggling modes or unmounting.
   const vimModeRef = useRef<any>(null);
+  // The status bar element reference where VIM commands (e.g., :w, :s/) are rendered.
   const statusNodeRef = useRef<HTMLDivElement>(null);
 
-  // Configure Monaco
-  loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+  // Configure Monaco Loader to use a specific CDN version.
+  // This ensures we aren't reliant on a local bundler for the heavy editor files.
+  loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.54.0/min/vs' } });
 
+  // Update internal display state when the selected file changes.
   useEffect(() => {
     if (file) {
         setDisplayContent(file.content);
     }
   }, [file]);
 
+  /**
+   * Auto-Save Simulation Logic
+   * 
+   * We use a debounce pattern here:
+   * 1. When content changes (file.content dependency), set status to 'unsaved'.
+   * 2. Start a timer (2000ms).
+   * 3. If no new changes occur within 2s, 'save' (write to localStorage) and set status to 'saved'.
+   * 4. If new changes occur, the previous timer is cleared via the cleanup function.
+   */
   useEffect(() => {
     if (!file) return;
     setSaveStatus('unsaved');
     const handler = setTimeout(() => {
       setSaveStatus('saving');
+      // In a real app, this would trigger a backend API call.
       localStorage.setItem(`omnigen_cache_${file.path}`, file.content);
       setTimeout(() => setSaveStatus('saved'), 400);
     }, 2000);
     return () => clearTimeout(handler);
   }, [file?.content, file?.path]);
 
-  // Register Snippets when language or monaco instance changes
+  /**
+   * Snippet Registration
+   * 
+   * Dynamic registration of code snippets based on the active language.
+   * We use a ref to dispose of previous providers to avoid duplicate snippets
+   * when switching languages multiple times.
+   */
   useEffect(() => {
       if (monacoRef.current && language) {
           if (completionDisposableRef.current) {
@@ -101,14 +137,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
       };
   }, [language]);
 
-  // Handle VIM Mode Toggle
+  /**
+   * VIM Mode Logic
+   * 
+   * Handles the attachment and detachment of the VIM emulation layer.
+   * Critical: Must dispose of the previous instance before creating a new one
+   * or when the component unmounts to prevent memory leaks and status bar glitches.
+   */
   useEffect(() => {
       if (!editorRef.current || !statusNodeRef.current) return;
 
       if (vimMode) {
           if (!vimModeRef.current) {
               try {
-                  // Initialize VIM mode attached to the editor and status bar
+                  // initVimMode attaches key listeners to the editor and renders status info to the statusNode
                   vimModeRef.current = initVimMode(editorRef.current, statusNodeRef.current);
                   console.log('VIM Mode Enabled');
               } catch (e) {
@@ -116,6 +158,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
               }
           }
       } else {
+          // Clean up keybindings and listeners when VIM mode is disabled
           if (vimModeRef.current) {
               vimModeRef.current.dispose();
               vimModeRef.current = null;
@@ -147,7 +190,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative animate-in fade-in duration-300 group">
       
-      {/* AI Floating Action Button */}
+      {/* AI Floating Action Button - Absolute positioned overlay */}
       <div className="absolute top-4 right-8 z-10">
         <div className="relative">
             <button 
@@ -158,6 +201,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
                 AI Actions
             </button>
             
+            {/* Context Menu for AI Actions */}
             {showAiMenu && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
                     <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white text-left transition-colors">
@@ -205,19 +249,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
             formatOnPaste: true,
             tabSize: 2,
             snippetSuggestions: 'top', 
+            // Adjust cursor style for VIM mode to visual block vs line
             cursorBlinking: vimMode ? 'solid' : 'blink',
             cursorStyle: vimMode ? 'block' : 'line',
           }}
         />
       </div>
 
-      {/* VIM Status Bar (Visible only when VIM mode enabled) */}
+      {/* VIM Status Bar - Must exist in DOM for initVimMode to attach to, even if hidden */}
       <div 
           ref={statusNodeRef} 
           className={`${vimMode ? 'block' : 'hidden'} border-t border-zinc-700`}
       ></div>
 
-      {/* Standard Status Bar */}
+      {/* App Status Bar */}
       <div className="h-6 bg-[#007acc] flex items-center px-3 justify-between text-[10px] text-white shrink-0 select-none z-20">
         <div className="flex items-center gap-4">
             <span className="font-bold">{language.toUpperCase()}</span>
@@ -245,7 +290,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
         </div>
       </div>
       
-      {/* Click outside listener for menu */}
+      {/* Click outside listener for closing the AI menu */}
       {showAiMenu && <div className="fixed inset-0 z-0" onClick={() => setShowAiMenu(false)}></div>}
     </div>
   );
