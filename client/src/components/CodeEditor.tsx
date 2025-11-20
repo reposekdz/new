@@ -2,10 +2,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import Editor, { loader, Monaco } from '@monaco-editor/react';
 import { GeneratedFile } from '../types';
-import { Save, CheckCircle, Sparkles, MessageSquarePlus, Bug, FileSearch, Keyboard, Zap, MoreVertical } from 'lucide-react';
+import { Sparkles, FileSearch, Zap, Bug, MessageSquarePlus, MoreVertical, Keyboard } from 'lucide-react';
 import { getSnippetsForLanguage } from '../utils/snippetLibrary';
-// @ts-ignore - Dynamic import handling for CDN
-import { initVimMode } from 'monaco-vim';
 
 interface CodeEditorProps {
   file: GeneratedFile | null;
@@ -45,8 +43,6 @@ const getLanguageFromPath = (path: string): string => {
 const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIAction, vimMode = false }) => {
   const language = useMemo(() => file ? getLanguageFromPath(file.path) : 'plaintext', [file]);
   
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
-  const [displayContent, setDisplayContent] = useState("");
   const [showAiMenu, setShowAiMenu] = useState(false);
   
   const monacoRef = useRef<Monaco | null>(null);
@@ -57,23 +53,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
 
   loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.54.0/min/vs' } });
 
-  useEffect(() => {
-    if (file) {
-        setDisplayContent(file.content);
-    }
-  }, [file]);
-
-  useEffect(() => {
-    if (!file) return;
-    setSaveStatus('unsaved');
-    const handler = setTimeout(() => {
-      setSaveStatus('saving');
-      localStorage.setItem(`omnigen_cache_${file.path}`, file.content);
-      setTimeout(() => setSaveStatus('saved'), 400);
-    }, 2000);
-    return () => clearTimeout(handler);
-  }, [file?.content, file?.path]);
-
+  // Register Snippets
   useEffect(() => {
       if (monacoRef.current && language) {
           if (completionDisposableRef.current) {
@@ -91,30 +71,45 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
       };
   }, [language]);
 
+  // VIM Mode Logic
   useEffect(() => {
-      if (!editorRef.current || !statusNodeRef.current) return;
+      let mounted = true;
+      
+      const loadVim = async () => {
+        if (!editorRef.current || !statusNodeRef.current) return;
 
-      if (vimMode) {
-          if (!vimModeRef.current) {
-              try {
-                  vimModeRef.current = initVimMode(editorRef.current, statusNodeRef.current);
-              } catch (e) {
-                  console.error("Failed to initialize VIM mode.", e);
-              }
-          }
-      } else {
-          if (vimModeRef.current) {
-              vimModeRef.current.dispose();
-              vimModeRef.current = null;
-          }
-      }
+        if (vimMode) {
+            if (!vimModeRef.current) {
+                try {
+                    // Dynamic import to prevent build errors if dependency is missing
+                    // @ts-ignore
+                    const { initVimMode } = await import('monaco-vim');
+                    if (!mounted) return;
+                    const vim = initVimMode(editorRef.current, statusNodeRef.current);
+                    vimModeRef.current = vim;
+                } catch (e) {
+                    console.error("Failed to load VIM mode:", e);
+                }
+            }
+        } else {
+            if (vimModeRef.current) {
+                vimModeRef.current.dispose();
+                vimModeRef.current = null;
+                if (statusNodeRef.current) statusNodeRef.current.innerHTML = '';
+            }
+        }
+      };
+
+      loadVim();
+
       return () => {
+          mounted = false;
           if (vimModeRef.current) {
-              vimModeRef.current.dispose();
-              vimModeRef.current = null;
+               vimModeRef.current.dispose();
+               vimModeRef.current = null;
           }
-      }
-  }, [vimMode, editorRef.current]);
+      };
+  }, [vimMode, file?.path]); // Re-run on file change to ensure VIM re-attaches if needed
 
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
       monacoRef.current = monaco;
@@ -125,19 +120,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
       if (!file) return;
       onAIAction(action, file.path, file.content);
       setShowAiMenu(false);
-  }
+  };
 
   if (!file) return null;
 
   return (
-    <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative animate-in fade-in duration-300 group">
+    <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative group">
       
-      {/* AI Floating Action Button */}
+      {/* Floating AI Action Widget */}
       <div className="absolute top-4 right-6 z-10">
         <div className="relative">
             <button 
                 onClick={() => setShowAiMenu(!showAiMenu)}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white pl-3 pr-4 py-1.5 rounded-full shadow-lg shadow-indigo-500/20 text-xs font-medium transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 hover:scale-105"
+                className="flex items-center gap-2 bg-indigo-600/90 hover:bg-indigo-500 text-white pl-3 pr-4 py-1.5 rounded-full shadow-lg shadow-indigo-900/20 text-xs font-medium transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 hover:scale-105 border border-indigo-500/50 backdrop-blur-md"
             >
                 <Sparkles size={12} />
                 AI Actions
@@ -146,8 +141,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
             
             {/* Context Menu */}
             {showAiMenu && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-[#252526] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
-                    <div className="px-3 py-2 border-b border-zinc-700/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                <div className="absolute right-0 top-full mt-2 w-60 bg-[#252526] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden flex flex-col py-1 animate-in fade-in slide-in-from-top-2 z-20">
+                    <div className="px-3 py-2 border-b border-zinc-700/50 text-[10px] font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900/50">
                         Intelligence
                     </div>
                     <button onClick={() => handleAction('explain')} className="flex items-center gap-3 px-4 py-2.5 text-xs text-zinc-300 hover:bg-indigo-600 hover:text-white text-left transition-colors group/item">
@@ -171,12 +166,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
         </div>
       </div>
 
+      {/* Editor Area */}
       <div className="flex-1 relative">
         <Editor
           height="100%"
           path={file.path}
           language={language}
-          value={displayContent}
+          value={file.content}
           theme="vs-dark"
           onMount={handleEditorDidMount}
           onChange={(value) => onChange(value || '')}
@@ -189,46 +185,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange, fontSize, onAIA
             smoothScrolling: true,
             automaticLayout: true,
             wordWrap: 'on',
-            padding: { top: 20, bottom: 20 },
+            padding: { top: 16, bottom: 16 },
             renderLineHighlight: 'all',
             bracketPairColorization: { enabled: true },
             formatOnType: true,
             formatOnPaste: true,
             tabSize: 2,
-            snippetSuggestions: 'top', 
+            snippetSuggestions: 'top',
             cursorBlinking: vimMode ? 'solid' : 'blink',
             cursorStyle: vimMode ? 'block' : 'line',
+            contextmenu: true,
           }}
         />
       </div>
 
-      <div ref={statusNodeRef} className={`${vimMode ? 'block' : 'hidden'} border-t border-zinc-700`}></div>
-
-      <div className="h-6 bg-[#007acc] flex items-center px-3 justify-between text-[10px] text-white shrink-0 select-none z-20">
-        <div className="flex items-center gap-4">
-            <span className="font-bold">{language.toUpperCase()}</span>
-            <span>UTF-8</span>
-            <span>{fontSize}px</span>
-            {vimMode && <span className="flex items-center gap-1 bg-white/20 px-1.5 rounded text-[9px] font-bold"><Keyboard size={8}/> VIM</span>}
-        </div>
-        
-        <div className="flex items-center gap-2">
-            {saveStatus === 'unsaved' && (
-                <span className="flex items-center gap-1 text-white">
-                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div> Unsaved
-                </span>
-            )}
-            {saveStatus === 'saving' && (
-                <span className="flex items-center gap-1 text-white/80">
-                   <Save size={10} className="animate-pulse" /> Saving...
-                </span>
-            )}
-            {saveStatus === 'saved' && (
-                <span className="flex items-center gap-1 text-white/90">
-                    <CheckCircle size={10} /> Saved
-                </span>
-            )}
-        </div>
+      {/* VIM Status Bar (Integrated into Editor Bottom) */}
+      <div 
+        ref={statusNodeRef} 
+        className={`vim-status-bar bg-[#007acc] text-white font-mono text-xs px-2 flex items-center transition-all duration-200 ${vimMode ? 'min-h-[24px] border-t border-white/10' : 'h-0 overflow-hidden border-0'}`}
+      >
       </div>
       
       {showAiMenu && <div className="fixed inset-0 z-0" onClick={() => setShowAiMenu(false)}></div>}

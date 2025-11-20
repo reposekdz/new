@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { X, Settings, Cpu, Type, Save, Zap, Box, Smartphone, Monitor, Globe, Code2 } from 'lucide-react';
+import { X, Settings, Cpu, Type, Save, Zap, Box, Smartphone, Monitor, Globe, Code2, Keyboard } from 'lucide-react';
 import { AppSettings, Platform, ProgrammingLanguage } from '../types';
 
 interface SettingsModalProps {
@@ -97,6 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
              </div>
           </div>
 
+          {/* Editor Settings */}
           <div className="grid grid-cols-2 gap-4">
                {/* Font Size */}
                <div className="space-y-2">
@@ -127,6 +128,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     </button>
                </div>
           </div>
+
+          {/* Advanced Settings */}
+           <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide flex items-center gap-2">
+                    <Keyboard size={14} /> Advanced Editor
+                </label>
+                <button 
+                    onClick={() => onUpdateSettings({ ...settings, vimMode: !settings.vimMode })}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                        settings.vimMode 
+                        ? 'bg-indigo-900/20 border-indigo-900/50 text-indigo-400' 
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+                    }`}
+                >
+                    <span>VIM Keybindings</span>
+                    <div className={`w-10 h-5 rounded-full relative transition-colors ${settings.vimMode ? 'bg-indigo-500' : 'bg-zinc-700'}`}>
+                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${settings.vimMode ? 'left-6' : 'left-1'}`}></div>
+                    </div>
+                </button>
+           </div>
+
         </div>
 
         {/* Footer */}

@@ -17,7 +17,8 @@ const analyzeComplexity = (prompt) => {
         'optimization', 'refactor', 'testing', 'coverage', 'ci/cd', 'deployment',
         'authentication', 'authorization', 'oauth', 'jwt', 'redux', 'zustand',
         'mobile', 'react native', 'expo', 'electron', 'rust', 'c++',
-        'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace', '3d', 'three.js'
+        'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace', '3d', 'three.js',
+        'vim', 'neovim', 'plugin', 'extension'
     ];
     
     let score = 0;
@@ -69,7 +70,7 @@ const parseHealedJson = (text) => {
         }
         
         console.error("Failed JSON Text Preview:", text.substring(0, 500) + "...");
-        throw new Error("Failed to parse JSON response from AI.");
+        throw new Error("Failed to parse JSON response from AI. The model might be thinking too hard.");
     }
 };
 
@@ -123,19 +124,17 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
   const config = {
       systemInstruction,
-      temperature: isThinkingModel ? 0.7 : 0.4, // Thinking models often perform better with slightly higher temp + thinking budget
+      temperature: isThinkingModel ? 0.7 : 0.4, 
       topK: 40,
       topP: 0.95,
-      // maxOutputTokens: 8192, // Optional: Ensure enough room for code. 
-      // Note: If thinkingBudget is set, effective limit is maxOutputTokens - thinkingBudget.
-      // So we leave maxOutputTokens unset (default max) to allow full generation.
   };
 
-  // Enable Thinking Budget for deep reasoning on complex tasks
+  // Enable Deep Thinking Budget for complex tasks
   if (isThinkingModel && (isComplex || effectiveModel.includes('pro'))) {
-       // Allocate 8k tokens for thinking on complex tasks, 2k for lighter ones
-       config.thinkingConfig = { thinkingBudget: isComplex ? 8192 : 2048 };
-       console.log(`[AI] Deep Thinking Enabled: Budget ${config.thinkingConfig.thinkingBudget}`);
+       // Maximize reasoning for Pro model to beat competitors
+       const budget = isComplex ? 16384 : 4096; 
+       config.thinkingConfig = { thinkingBudget: budget };
+       console.log(`[AI] Deep Thinking Enabled: Budget ${budget}`);
   }
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
