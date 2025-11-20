@@ -4,7 +4,7 @@ import { GeneratedFile } from '../types';
 import { 
   File, FileJson, FileCode, FileType2, Folder, FolderOpen, 
   ChevronDown, ChevronRight, Image as ImageIcon, Music, 
-  Database, Settings, Terminal, Layout, Edit2, Trash2, MoreVertical
+  Database, Settings, Terminal, Layout, Edit2, Trash2, MoreVertical, Search, Clock, X
 } from 'lucide-react';
 
 interface FileExplorerProps {
@@ -14,6 +14,10 @@ interface FileExplorerProps {
   onRename: (oldPath: string, newName: string, isFolder: boolean) => void;
   onDelete: (path: string, isFolder: boolean) => void;
   searchQuery: string;
+  onSearchChange: (query: string) => void;
+  searchHistory: string[];
+  onAddToHistory: (term: string) => void;
+  onClearHistory: () => void;
 }
 
 type FileNode = {
@@ -189,7 +193,13 @@ const FileTreeItem: React.FC<{
   );
 };
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSelectFile, onRename, onDelete, searchQuery }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ 
+  files, selectedFile, onSelectFile, onRename, onDelete, 
+  searchQuery, onSearchChange, searchHistory, onAddToHistory, onClearHistory 
+}) => {
+  const [showHistory, setShowHistory] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   // Build Tree Structure
   const fileTree = useMemo(() => {
     const root: FileNode = { name: 'root', path: '', type: 'folder', children: {} };
@@ -219,12 +229,67 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ files, selectedFile, onSele
     return root;
   }, [files, searchQuery]);
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+          onAddToHistory(searchQuery);
+          setShowHistory(false);
+      }
+  };
+
+  // Click outside logic
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+              setShowHistory(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-[#09090b] select-none">
-      <div className="p-3 border-b border-zinc-800 flex flex-col gap-2 shrink-0">
-         <div className="flex items-center justify-between">
+      <div className="p-3 border-b border-zinc-800 flex flex-col gap-2 shrink-0 z-20">
+         <div className="flex items-center justify-between mb-2">
              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Explorer</span>
              <div className="text-[10px] text-zinc-600">Double-click to rename</div>
+         </div>
+         
+         <div className="relative" ref={searchRef}>
+            <Search size={12} className="absolute top-2 left-2 text-zinc-500" />
+            <input 
+                type="text" 
+                placeholder="Search files..." 
+                value={searchQuery} 
+                onChange={e => onSearchChange(e.target.value)}
+                onFocus={() => setShowHistory(true)}
+                onKeyDown={handleSearchKeyDown}
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded py-1 pl-7 pr-2 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/50 transition-colors" 
+            />
+            
+            {/* Search History Dropdown */}
+            {showHistory && searchHistory.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-md shadow-xl overflow-hidden z-30 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center justify-between px-2 py-1.5 bg-zinc-800/50 border-b border-zinc-800">
+                        <span className="text-[10px] font-medium text-zinc-500 uppercase">Recent Searches</span>
+                        <button onClick={onClearHistory} className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors">Clear</button>
+                    </div>
+                    {searchHistory.map((term, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => {
+                                onSearchChange(term);
+                                onAddToHistory(term); // Move to top
+                                setShowHistory(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2 transition-colors"
+                        >
+                            <Clock size={12} className="opacity-50"/>
+                            <span className="truncate">{term}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
          </div>
       </div>
 

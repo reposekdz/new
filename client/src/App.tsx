@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GeneratedFile, AIModel, TerminalLog, Attachment, ChatMessage, AppSettings } from './types';
 import { generateAppCode, runCodeSimulation, setupProject } from './services/geminiService';
 import FileExplorer from './components/FileExplorer';
@@ -36,6 +36,12 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   
+  // Search History State
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+      const saved = localStorage.getItem('omnigen_search_history');
+      return saved ? JSON.parse(saved) : [];
+  });
+
   // View & Layout State
   const [viewMode, setViewMode] = useState<'code' | 'split' | 'preview'>('split');
   const [showChat, setShowChat] = useState(true);
@@ -62,6 +68,11 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'preview' | 'terminal'>('preview');
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+
+  // --- PERSISTENCE ---
+  useEffect(() => {
+      localStorage.setItem('omnigen_search_history', JSON.stringify(searchHistory));
+  }, [searchHistory]);
 
   // --- EFFECT: Sync Project Name to package.json ---
   useEffect(() => {
@@ -135,6 +146,18 @@ const App: React.FC = () => {
   }, []);
 
   // --- HANDLERS ---
+  const handleSearchHistoryAdd = (term: string) => {
+      if (!term.trim()) return;
+      setSearchHistory(prev => {
+          const filtered = prev.filter(t => t !== term); // Remove dupes
+          return [term, ...filtered].slice(0, 10); // Keep last 10
+      });
+  };
+
+  const handleSearchHistoryClear = () => {
+      setSearchHistory([]);
+  };
+
   const handleLandingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
         const newAttachments: Attachment[] = [];
@@ -244,10 +267,7 @@ const App: React.FC = () => {
     setFiles(prevFiles => {
       const newFiles = prevFiles.map(file => {
         if (isFolder) {
-           // If renaming 'src/components' to 'src/ui', 
-           // 'src/components/Button.tsx' becomes 'src/ui/Button.tsx'
            if (file.path.startsWith(oldPath + '/')) {
-               // Calculate parent path of the folder
                const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
                const newFolderPath = parentPath ? `${parentPath}/${newName}` : newName;
                return {
@@ -265,15 +285,11 @@ const App: React.FC = () => {
         return file;
       });
       
-      // Update selected file if it was renamed (or inside renamed folder)
       if (selectedFile) {
          const newSelected = newFiles.find(f => {
-             if (isFolder) {
-                 return f.content === selectedFile.content && f.path.includes(newName); // Heuristic
-             }
+             if (isFolder) return f.content === selectedFile.content && f.path.includes(newName); 
              return f.content === selectedFile.content && f.path.endsWith(newName);
          });
-         // Better: track index or just fallback
          if(newSelected) setSelectedFile(newSelected);
       }
 
@@ -518,19 +534,17 @@ const App: React.FC = () => {
         {/* 2. File Explorer */}
         {showExplorer && (
             <div style={{ width: sidebarWidth }} className="flex flex-col border-r border-zinc-800 bg-[#09090b] shrink-0 relative z-0">
-                 <div className="p-2 border-b border-zinc-800">
-                    <div className="relative group">
-                        <Search size={12} className="absolute top-2 left-2 text-zinc-500" />
-                        <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded py-1 pl-7 pr-2 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/50 transition-colors" />
-                    </div>
-                 </div>
                 <FileExplorer 
                     files={files} 
                     selectedFile={selectedFile} 
                     onSelectFile={setSelectedFile} 
                     onRename={handleRenameFile}
                     onDelete={handleDeleteFile}
-                    searchQuery={searchQuery} 
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    searchHistory={searchHistory}
+                    onAddToHistory={handleSearchHistoryAdd}
+                    onClearHistory={handleSearchHistoryClear}
                 />
                  <div 
                     className="absolute right-[-2px] top-0 bottom-0 w-1 cursor-col-resize z-50 hover:bg-indigo-500 transition-colors delay-150"
