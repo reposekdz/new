@@ -7,7 +7,7 @@ import {
   Database, Settings, Terminal, Layout, Edit2, Trash2, 
   MoreVertical, Search, Clock, X, Box, Coffee, FileText, 
   Globe, Server, Shield, Cpu, Gem, Atom, Video, Key, 
-  PlayCircle, Braces
+  PlayCircle, Braces, FileCog, Table
 } from 'lucide-react';
 
 interface FileExplorerProps {
@@ -37,8 +37,8 @@ const getFileIcon = (filename: string) => {
 
   // Specific Filenames
   if (lower === 'package.json') return <Box size={15} className="text-red-400" />;
-  if (lower === 'tsconfig.json' || lower.includes('jsconfig')) return <Settings size={15} className="text-blue-400" />;
-  if (lower === 'dockerfile' || lower.includes('docker')) return <Box size={15} className="text-blue-500" />;
+  if (lower === 'tsconfig.json' || lower.includes('jsconfig')) return <FileCog size={15} className="text-blue-400" />;
+  if (lower === 'dockerfile' || lower.includes('docker')) return <Box size={15} className="text-sky-500" />;
   if (lower === '.gitignore' || lower === '.env') return <Settings size={15} className="text-zinc-500" />;
   if (lower === 'readme.md') return <FileText size={15} className="text-emerald-400" />;
 
@@ -58,7 +58,7 @@ const getFileIcon = (filename: string) => {
     // Backend / Systems
     case 'py': return <FileCode size={15} className="text-blue-300" />;
     case 'go': return <FileCode size={15} className="text-cyan-500" />;
-    case 'rs': return <Settings size={15} className="text-orange-600" />; // Rust (Gear is common for rust)
+    case 'rs': return <Settings size={15} className="text-orange-600" />; // Rust (Gear)
     case 'java': return <Coffee size={15} className="text-red-500" />;
     case 'rb': return <Gem size={15} className="text-red-600" />;
     case 'php': return <Server size={15} className="text-indigo-400" />;
@@ -74,7 +74,9 @@ const getFileIcon = (filename: string) => {
     case 'yml': 
     case 'yaml': 
     case 'toml': 
-    case 'xml': return <Settings size={15} className="text-zinc-400" />;
+    case 'xml': return <FileCog size={15} className="text-zinc-400" />;
+    case 'csv':
+    case 'tsv': return <Table size={15} className="text-green-400" />;
     case 'sh': 
     case 'bash': 
     case 'zsh': return <Terminal size={15} className="text-green-500" />;
@@ -142,7 +144,7 @@ const FileTreeItem: React.FC<{
       onRename(node.path, editName.trim(), node.type === 'folder');
     }
     setIsEditing(false);
-    setEditName(node.name); // Reset to current if failed/cancelled, will update on next render if success
+    setEditName(node.name); // Reset to current if failed/cancelled
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
