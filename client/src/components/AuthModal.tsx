@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Mail, Lock, ArrowRight, CheckCircle, Github, Chrome } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, CheckCircle, Github, Chrome, ShieldCheck } from 'lucide-react';
 import { Button } from './ui/Button';
 
 interface AuthModalProps {
@@ -61,38 +61,40 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={onClose}
       />
 
       {/* Modal Content */}
-      <div className="w-full max-w-4xl bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden relative z-10 flex flex-col md:flex-row animate-in zoom-in-95 fade-in duration-300 scale-100">
+      <div className="w-full max-w-4xl bg-[#09090b] border border-zinc-800 rounded-3xl shadow-2xl shadow-indigo-900/20 overflow-hidden relative z-10 flex flex-col md:flex-row animate-in zoom-in-95 fade-in duration-300 scale-100 ring-1 ring-white/10">
         
-        {/* Left Side - Artistic/Visual */}
-        <div className="hidden md:flex md:w-1/2 bg-zinc-900 relative overflow-hidden items-center justify-center p-12">
-            {/* Background Gradients */}
-            <div className="absolute top-[-20%] left-[-20%] w-[140%] h-[140%] bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 opacity-40 blur-[80px]" />
-            <div className="absolute bottom-0 right-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+        {/* Left Side - Abstract Visuals */}
+        <div className="hidden md:flex md:w-1/2 bg-black relative overflow-hidden items-center justify-center p-12">
+            {/* Advanced Mesh Gradient */}
+            <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[conic-gradient(at_center,_var(--tw-gradient-stops))] from-rose-500 via-purple-600 to-indigo-500 opacity-30 blur-[100px] animate-spin-slow" style={{ animationDuration: '20s' }}></div>
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
             
-            <div className="relative z-10 text-center space-y-6">
-                <div className="w-20 h-20 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center justify-center mx-auto shadow-2xl transform rotate-12 hover:rotate-0 transition-all duration-500">
-                   <Lock size={32} className="text-white" />
+            <div className="relative z-10 text-center space-y-8">
+                <div className="w-24 h-24 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl flex items-center justify-center mx-auto shadow-2xl transform rotate-6 hover:rotate-0 transition-all duration-700 group">
+                   <ShieldCheck size={40} className="text-white opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                 </div>
                 <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">Welcome to OmniGen</h2>
-                    <p className="text-indigo-200 text-sm leading-relaxed">
-                        The AI-powered IDE that architects, builds, and secures your applications in seconds.
+                    <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 mb-3">OmniGen ID</h2>
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-xs mx-auto">
+                        Secure access to your personal AI architect. 
+                        Sync projects, manage deployments, and collaborate.
                     </p>
                 </div>
                 
-                <div className="space-y-3 pt-4">
-                    <div className="flex items-center gap-3 text-sm text-indigo-100/80 bg-white/5 px-4 py-2 rounded-lg border border-white/10">
-                        <CheckCircle size={16} className="text-emerald-400" /> 
-                        <span>Secure Cloud Workspace</span>
+                <div className="flex flex-col gap-3 pt-2">
+                    <div className="flex items-center gap-3 text-xs font-medium text-white/80 bg-white/5 px-4 py-2.5 rounded-xl border border-white/5 backdrop-blur-sm">
+                        <CheckCircle size={14} className="text-emerald-400" /> 
+                        <span>Enterprise-Grade Encryption</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-indigo-100/80 bg-white/5 px-4 py-2 rounded-lg border border-white/10">
-                        <CheckCircle size={16} className="text-emerald-400" /> 
-                        <span>Unlimited AI Generations</span>
+                    <div className="flex items-center gap-3 text-xs font-medium text-white/80 bg-white/5 px-4 py-2.5 rounded-xl border border-white/5 backdrop-blur-sm">
+                        <CheckCircle size={14} className="text-emerald-400" /> 
+                        <span>Cloud Workspace Sync</span>
                     </div>
                 </div>
             </div>
@@ -100,51 +102,55 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
 
         {/* Right Side - Form */}
         <div className="w-full md:w-1/2 p-8 md:p-12 bg-[#09090b] flex flex-col justify-center relative">
-            <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors">
-                <X size={20} />
+            <button onClick={onClose} className="absolute top-6 right-6 text-zinc-500 hover:text-white bg-zinc-900/50 hover:bg-zinc-800 p-2 rounded-full transition-all">
+                <X size={18} />
             </button>
 
             <div className="mb-8">
-                <h3 className="text-2xl font-bold text-white mb-1">
-                    {isLogin ? 'Sign back in' : 'Create an account'}
+                <h3 className="text-2xl font-bold text-white mb-2">
+                    {isLogin ? 'Welcome back' : 'Join the future'}
                 </h3>
-                <p className="text-zinc-400 text-sm">
-                    {isLogin ? 'Enter your credentials to access your workspace.' : 'Start building your dream apps today.'}
+                <p className="text-zinc-500 text-sm">
+                    {isLogin ? 'Enter your credentials to continue.' : 'Create your account to start building.'}
                 </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
                 {error && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-xs">
-                        {error}
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-xs font-medium flex items-center gap-2">
+                        <X size={14} /> {error}
                     </div>
                 )}
 
                 <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300 uppercase tracking-wide">Email Address</label>
-                    <div className="relative">
-                        <Mail size={16} className="absolute left-3 top-3 text-zinc-500" />
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Email</label>
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Mail size={16} className="text-zinc-600 group-focus-within:text-indigo-500 transition-colors" />
+                        </div>
                         <input 
                             type="email" 
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                            placeholder="you@example.com"
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                            placeholder="dev@omnigen.ai"
                         />
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300 uppercase tracking-wide">Password</label>
-                    <div className="relative">
-                        <Lock size={16} className="absolute left-3 top-3 text-zinc-500" />
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Password</label>
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Lock size={16} className="text-zinc-600 group-focus-within:text-indigo-500 transition-colors" />
+                        </div>
                         <input 
                             type="password" 
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                             placeholder="••••••••"
                         />
                     </div>
@@ -154,9 +160,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
                     type="submit" 
                     variant="gradient" 
                     fullWidth 
+                    size="lg"
                     isLoading={isLoading}
-                    rightIcon={!isLoading && <ArrowRight size={16} />}
-                    className="mt-2"
+                    rightIcon={!isLoading && <ArrowRight size={18} />}
+                    className="mt-4 shadow-xl shadow-indigo-900/20"
                 >
                     {isLogin ? 'Sign In' : 'Create Account'}
                 </Button>
@@ -164,25 +171,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
 
             <div className="relative my-8">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-800"></div></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#09090b] px-2 text-zinc-500">Or continue with</span></div>
+                <div className="relative flex justify-center text-xs font-medium uppercase"><span className="bg-[#09090b] px-4 text-zinc-600">Or continue with</span></div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-                <Button variant="secondary" onClick={handleGoogleLogin} leftIcon={<Chrome size={16} className="text-zinc-100"/>}>
+            <div className="grid grid-cols-2 gap-4">
+                <Button variant="secondary" onClick={handleGoogleLogin} leftIcon={<Chrome size={18} className="text-white"/>} className="bg-zinc-900 border-zinc-800 hover:bg-zinc-800">
                     Google
                 </Button>
-                <Button variant="secondary" leftIcon={<Github size={16} className="text-zinc-100"/>}>
+                <Button variant="secondary" leftIcon={<Github size={18} className="text-white"/>} className="bg-zinc-900 border-zinc-800 hover:bg-zinc-800">
                     GitHub
                 </Button>
             </div>
 
             <p className="text-center mt-8 text-xs text-zinc-500">
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
-                <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-400 hover:text-indigo-300 font-medium hover:underline">
-                    {isLogin ? 'Sign up' : 'Log in'}
+                {isLogin ? "New here? " : "Already a member? "}
+                <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-400 hover:text-indigo-300 font-bold hover:underline transition-all">
+                    {isLogin ? 'Create an account' : 'Log in'}
                 </button>
             </p>
-
         </div>
       </div>
     </div>

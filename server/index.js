@@ -51,6 +51,7 @@ app.post('/api/auth/register', (req, res) => {
     const token = Buffer.from(`${email}:${Date.now()}`).toString('base64');
     tokens.set(token, newUser);
 
+    console.log(`[Auth] Registered: ${email}`);
     res.json({ message: "Registered successfully", token, user: { id: newUser.id, email, name: newUser.name } });
 });
 
@@ -63,7 +64,8 @@ app.post('/api/auth/login', (req, res) => {
     const token = Buffer.from(`${email}:${Date.now()}`).toString('base64');
     tokens.set(token, user);
 
-    res.json({ message: "Logged in", token, user: { id: user.id, email, user: user.name } });
+    console.log(`[Auth] Login: ${email}`);
+    res.json({ message: "Logged in", token, user: { id: user.id, email, name: user.name } });
 });
 
 app.get('/api/auth/me', authenticateToken, (req, res) => {

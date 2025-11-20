@@ -16,7 +16,7 @@ import {
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command, LogIn, UserCircle
+  Github, FolderUp, Keyboard, Command, LogIn, UserCircle, CheckCircle
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -300,6 +300,7 @@ const App: React.FC = () => {
     setError(null);
     
     try {
+        // Pre-scaffold basic files while waiting for AI
         const scaffold = setupProject(settings.projectName);
         setFiles(scaffold);
 
@@ -499,22 +500,28 @@ const App: React.FC = () => {
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-        {/* Header overlay for landing */}
-        <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-            <div className="flex items-center gap-2">
+        {/* Header overlay for landing - HIGH Z-INDEX to fix visibility */}
+        <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[100] w-full pointer-events-none">
+            <div className="flex items-center gap-2 pointer-events-auto">
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
                     <Sparkles size={16} className="text-white" />
                 </div>
-                <span className="font-bold text-lg tracking-tight">OmniGen</span>
+                <span className="font-bold text-lg tracking-tight shadow-black drop-shadow-md">OmniGen</span>
             </div>
-            <div>
+            <div className="pointer-events-auto">
                 {user ? (
-                    <div className="flex items-center gap-3">
-                         <span className="text-sm text-zinc-300">Hello, {user.name}</span>
-                         <Button size="sm" variant="secondary" onClick={() => setUser(null)}>Logout</Button>
+                    <div className="flex items-center gap-3 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-full pl-4 pr-1 py-1 shadow-lg">
+                         <span className="text-sm text-zinc-300 font-medium">Hi, {user.name}</span>
+                         <Button size="sm" variant="secondary" onClick={() => setUser(null)} className="rounded-full h-7 text-xs">Logout</Button>
                     </div>
                 ) : (
-                    <Button variant="gradient" size="sm" onClick={() => setIsAuthModalOpen(true)} leftIcon={<LogIn size={14} />}>
+                    <Button 
+                        variant="gradient" 
+                        size="sm" 
+                        onClick={() => setIsAuthModalOpen(true)} 
+                        leftIcon={<LogIn size={14} />}
+                        className="shadow-xl shadow-indigo-500/30 animate-in fade-in slide-in-from-top-2 duration-500"
+                    >
                         Login / Register
                     </Button>
                 )}
@@ -522,7 +529,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="z-10 w-full max-w-3xl px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 mb-8 backdrop-blur-sm shadow-lg">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 mb-8 backdrop-blur-sm shadow-lg hover:border-indigo-500/50 transition-colors cursor-default">
             <Sparkles size={14} className="text-amber-400" />
             <span className="text-xs font-medium text-zinc-300 tracking-wide uppercase">Powered by Gemini 3.0 Pro</span>
           </div>
@@ -531,7 +538,7 @@ const App: React.FC = () => {
             OmniGen
           </h1>
           <p className="text-lg text-zinc-400 mb-10 max-w-xl leading-relaxed">
-            The universal AI software architect. Build new apps, or import existing ones.
+            The universal AI software architect. Build complex apps with full-stack reasoning, security, and scale.
           </p>
 
           {/* --- INTERACTIVE INPUT AREA --- */}
@@ -580,7 +587,7 @@ const App: React.FC = () => {
                             value={landingPrompt}
                             onChange={(e) => setLandingPrompt(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInitialGenerate(); } }}
-                            placeholder="Describe your dream application... (e.g., 'A Snake game in Python' or 'A React Landing Page')"
+                            placeholder="Describe your dream application... (e.g., 'A SaaS Dashboard with Auth and Stripe')"
                             className="w-full bg-transparent text-lg text-white p-4 min-h-[120px] outline-none resize-none font-light placeholder:text-zinc-600"
                         />
                         <div className="flex items-center justify-between px-4 pb-2">
@@ -590,8 +597,8 @@ const App: React.FC = () => {
                                     onChange={(e) => setSettings({...settings, model: e.target.value as AIModel})}
                                     className="bg-zinc-900 border border-zinc-800 text-xs rounded-md px-2 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors"
                                 >
-                                    <option value="gemini-2.5-flash">⚡ Flash (Speed)</option>
-                                    <option value="gemini-3-pro-preview">🧠 Pro (Logic)</option>
+                                    <option value="gemini-2.5-flash">⚡ Flash (Fast)</option>
+                                    <option value="gemini-3-pro-preview">🧠 Pro (Reasoning)</option>
                                 </select>
                                 <div className="relative group/attach">
                                     <input type="file" multiple className="hidden" ref={landingFileRef} onChange={handleLandingFileSelect} />
@@ -648,7 +655,6 @@ const App: React.FC = () => {
                              <FolderUp size={32} className="mx-auto text-zinc-600 mb-2" />
                              <p className="text-sm text-zinc-300 font-medium">Click to select a folder</p>
                              <p className="text-[10px] text-zinc-500 mt-1">Your files stay local until processed</p>
-                             {/* webkitdirectory attribute is non-standard but works in most browsers */}
                              <input 
                                 type="file" 
                                 ref={folderInputRef}
@@ -681,7 +687,7 @@ const App: React.FC = () => {
      );
   }
 
-  // --- APP LAYOUT ---
+  // --- MAIN APP LAYOUT (After Started) ---
   return (
     <div className="h-screen w-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
       
@@ -698,7 +704,7 @@ const App: React.FC = () => {
         onLogin={(userData) => { setUser(userData); setIsAuthModalOpen(false); }}
       />
 
-      {/* === HEADER === */}
+      {/* === APP HEADER === */}
       <header className="h-12 border-b border-zinc-800 flex items-center px-4 gap-4 bg-[#09090b] shrink-0 z-20 justify-between select-none">
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setHasStarted(false); setFiles([]); setMessages([]); }}>
