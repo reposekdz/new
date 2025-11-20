@@ -130,7 +130,6 @@ export const setupProject = (projectName: string = 'omnigen-app', language: Prog
 };
 
 export const getTemplateBoilerplate = (templateId: string): GeneratedFile[] => {
-    // ... (existing boilerplate code remains unchanged)
     const basicFiles = setupProject('omnigen-app', 'typescript');
     switch (templateId) {
         case 'react-vite':

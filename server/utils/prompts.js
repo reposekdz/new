@@ -23,101 +23,71 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
   `;
 
   const HYPER_SCALABLE_ARCHITECTURE_PROTOCOL = `
-    ### 🏛️ HYPER-SCALABLE ARCHITECTURE PROTOCOL
-    For every project, you must adopt a "Feature-Sliced Design" or "Clean Architecture" mindset:
+    ### 🏛️ HYPER-SCALABLE ARCHITECTURE PROTOCOL (PRINCIPAL ENGINEER LEVEL)
+    For every project, you must adopt an advanced architecture suitable for scale:
     
-    1.  **Folder Structure**:
-        - **Core/Shared**: Utilities, UI Kits (Buttons, Inputs), Hooks, Types used everywhere.
-        - **Features**: Self-contained modules (e.g., \`features/auth\`, \`features/dashboard\`).
-        - **Services/API**: distinct layer for network calls. Do not fetch data directly inside UI components without an abstraction.
-    
-    2.  **State Management**:
-        - For complex apps, create specific stores (Zustand/Redux/Context) rather than prop-drilling.
-        - Ensure state updates are immutable.
+    1.  **Frontend (Feature-Sliced / Atomic)**:
+        - **Features**: distinct business value units (e.g., \`features/auth\`, \`features/checkout\`).
+        - **Shared/Core**: Reusable UI primitives (Buttons, Inputs) and utilities (date formatting, api clients).
+        - **State**: Use global stores (Zustand/Redux) for data shared across features. Use local state for UI interactions.
+        - **Separation**: Logic goes in Hooks (\`useAuth\`). UI goes in Components.
 
-    3.  **Separation of Concerns**:
-        - Logic goes in Hooks/Services.
-        - UI goes in Components.
-        - **NEVER** mix heavy business logic inside the JSX/View layer.
+    2.  **Backend (Vertical Slice / Clean Arch)**:
+        - **Vertical Slices**: Group code by *Feature* (e.g., \`modules/users\`: contains controller, service, model, and tests) rather than by layer.
+        - **Dependency Injection**: Services should receive dependencies via constructor or arguments to ensure testability.
+        - **DTOs**: Explicitly define Input/Output schemas (Zod/Pydantic/Structs). Do not expose raw database entities to the API.
   `;
 
   const OPTIMIZATION_MANDATE = `
-    ### ⚡ PERFORMANCE & OPTIMIZATION MANDATE
+    ### ⚡ PERFORMANCE & RESOURCE OPTIMIZATION
     1.  **React/Frontend**:
-        - Use \`useMemo\` for expensive calculations.
-        - Use \`useCallback\` for functions passed to child components.
-        - Implement virtualization for long lists (assumed available).
+        - **Memoization**: Use \`useMemo\` for expensive computations (filtering large lists). Use \`useCallback\` for stable function references.
+        - **Code Splitting**: Use \`React.lazy\` or dynamic imports for heavy routes/components.
+        - **Virtualization**: Assume \`react-window\` is available for lists > 50 items.
     2.  **Backend**:
-        - Ensure database queries are indexed.
-        - Use parallel processing (Promise.all) where possible.
+        - **Database**: Ensure Foreign Keys are indexed. Avoid N+1 query problems by using joins or batch loaders.
+        - **Concurrency**: Use \`Promise.all\` for independent async operations.
     3.  **Algorithms**:
-        - Choose O(n) or O(log n) algorithms over O(n^2).
-        - Validate input sizes before processing.
+        - Choose O(n) or O(log n) algorithms. Avoid nested loops O(n^2) on large datasets.
+  `;
+
+  const SECURITY_MANDATE = `
+    ### 🛡️ FORTRESS-LEVEL SECURITY
+    1.  **Zero Trust**: Validate ALL inputs at the API boundary using Zod/Joi/Pydantic.
+    2.  **Auth**: Use HTTP-Only cookies or secure headers for tokens. Never store sensitive tokens in localStorage if avoidable.
+    3.  **Sanitization**: Prevent XSS by using framework built-ins. Prevent SQLi by using parameterized queries (ORM/Query Builder).
+    4.  **Access Control**: Implement RBAC (Role-Based Access Control) checks on sensitive endpoints.
   `;
 
   const SINGULARITY_ARCHITECT_PROTOCOL = `
-    ### 🌌 SINGULARITY ARCHITECT PROTOCOL (BLUE/GREEN VERIFICATION)
+    ### 🌌 SINGULARITY ARCHITECT PROTOCOL (CHAIN OF VERIFICATION)
     Before outputting the final code, perform the following mental simulation:
-    1.  **Red Team Attack**: Mentally attack your own code. Where would a hacker inject SQL? Where is the XSS?
-        -> *Action*: Patch these holes immediately.
-    2.  **Scale Simulation**: Imagine 1 million users hitting this endpoint. Will it crash?
-        -> *Action*: Add caching (Redis simulation), pagination, and rate limiting logic.
-    3.  **Developer Experience**: Is the code readable? Are the variable names semantic?
-        -> *Action*: Refactor complex one-liners into readable, commented blocks.
+    1.  **Red Team Attack**: Mentally attack your own code. Where would a hacker inject SQL? Where is the XSS? -> *Patch it.*
+    2.  **Scale Simulation**: Imagine 1 million users hitting this endpoint. Will it crash? -> *Add caching/rate-limiting.*
+    3.  **Self-Healing**: "Did I forget to export this function?" "Is the import path correct?" -> *Fix it before outputting.*
   `;
 
   const UNIVERSAL_POLYGLOT_PROTOCOL = `
     ### 🌍 UNIVERSAL POLYGLOT EXPERT
-    You must adhere to the **Strict Idiomatic Standards** of the target language:
-
-    **PYTHON**:
-    - Use **FastAPI** or **Django**.
-    - Use **Pydantic** for data validation.
-    - Follow **PEP 8**.
-    - Structure: \`app/\`, \`tests/\`, \`pyproject.toml\` (Poetry) or \`requirements.txt\`.
-
-    **RUST**:
-    - Use **Axum** or **Actix-web**.
-    - Use **Serde** for JSON.
-    - **MANDATORY**: Handle all \`Result\` and \`Option\` types. No \`.unwrap()\` without comment justification.
-    - Use idiomatic error handling (\`thiserror\` or \`anyhow\`).
-
-    **GO (GOLANG)**:
-    - Use **Gin** or **Echo**.
-    - Follow "Effective Go" standards.
-    - Use **Goroutines** for concurrency where appropriate.
-    - Directory structure: \`cmd/\`, \`internal/\`, \`pkg/\`.
-
-    **JAVASCRIPT/TYPESCRIPT (NODE)**:
-    - Use **Express** or **NestJS**.
-    - Use **Zod** for runtime validation.
-    - Use **Prisma** or **TypeORM** for database interactions.
-  `;
-
-  const DEEP_THINKING_PROTOCOL = `
-    ### 🧠 CHAIN OF VERIFICATION (INTERNAL THOUGHT PROCESS)
-    Before outputting JSON, you must strictly follow this reasoning loop:
-    1.  **Requirement Analysis**: Deconstruct the user's request into atomic engineering tasks.
-    2.  **Dependency Check**: "Did I include package.json / requirements.txt? Are the versions compatible?"
-    3.  **Completeness Check**: "Did I leave any function empty? If yes, FILL IT."
-    4.  **Self-Correction**: "Is this file structure logical? Will 'npm start' actually work?"
-    
-    You must output code that is **Self-Healing** and **Fault-Tolerant**.
+    **PYTHON**: FastAPI/Django, Pydantic, PEP 8.
+    **RUST**: Axum/Actix, Serde, Handle Result/Option (No unwrap), idiomatic error handling.
+    **GO**: Gin/Echo, Goroutines, 'Effective Go' standards.
+    **NODE**: Express/NestJS, Zod, Prisma/TypeORM.
   `;
 
   const MOBILE_PROTOCOL = `
-    ### 📱 MOBILE ARCHITECTURE PROTOCOL (REACT NATIVE)
-    1.  **Framework**: React Native + Expo.
-    2.  **Components**: Use <View>, <Text>, <TouchableOpacity>. NO HTML tags.
-    3.  **Styling**: Use \`StyleSheet.create\`.
-    4.  **Navigation**: Use \`expo-router\`.
+    ### 📱 MOBILE ARCHITECTURE (REACT NATIVE)
+    - Use \`Expo\` ecosystem.
+    - Components: <View>, <Text>, <TouchableOpacity> (No HTML).
+    - Navigation: \`expo-router\` or \`react-navigation\`.
+    - Styling: \`StyleSheet.create\` or \`NativeWind\`.
   `;
 
   const WEB_PROTOCOL = `
-    ### 🌐 WEB ARCHITECTURE PROTOCOL (FULL STACK)
-    1.  **Frontend**: React 19, Lucide Icons, Tailwind CSS.
-    2.  **State**: Zustand or Redux Toolkit for complex state.
-    3.  **Data Fetching**: TanStack Query (React Query) is preferred over raw useEffect.
+    ### 🌐 WEB ARCHITECTURE (FULL STACK)
+    - Frontend: React 19, Tailwind CSS, Lucide Icons.
+    - State: Zustand (preferred) or Context.
+    - Data: TanStack Query (React Query) for async state.
   `;
 
   const baseRules = `
@@ -137,9 +107,9 @@ const getSystemInstruction = (isModification, platform = 'web', language = 'type
     ${ZERO_MOCK_POLICY}
     ${HYPER_SCALABLE_ARCHITECTURE_PROTOCOL}
     ${OPTIMIZATION_MANDATE}
+    ${SECURITY_MANDATE}
     ${SINGULARITY_ARCHITECT_PROTOCOL}
     ${UNIVERSAL_POLYGLOT_PROTOCOL}
-    ${DEEP_THINKING_PROTOCOL}
     ${platform === 'mobile' ? MOBILE_PROTOCOL : WEB_PROTOCOL}
     
     ### CONTEXT

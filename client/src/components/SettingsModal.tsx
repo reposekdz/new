@@ -76,19 +76,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         <button
                             key={level}
                             onClick={() => handleThinkingChange(level)}
-                            className={`text-xs py-2 rounded-md border transition-all ${
+                            className={`text-xs py-2 rounded-md border transition-all flex flex-col items-center gap-1 ${
                                 settings.thinkingLevel === level
-                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 transform scale-105'
                                 : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:bg-zinc-800'
                             }`}
                         >
-                            {level.charAt(0).toUpperCase() + level.slice(1)}
+                            <span className="font-medium">{level.charAt(0).toUpperCase() + level.slice(1)}</span>
+                            {level === 'maximum' && <Zap size={8} className="fill-yellow-400 text-yellow-400" />}
                         </button>
                     ))}
                 </div>
-                <p className="text-[10px] text-zinc-500 px-1 leading-tight">
-                    <strong className="text-zinc-400">Maximum</strong> enables "Singularity Mode" (32k token budget) for self-healing architecture and security verification. Slower but smarter.
-                </p>
+                <div className="text-[10px] text-zinc-500 px-1 leading-tight mt-2 bg-zinc-950/50 p-2 rounded border border-zinc-800/50">
+                    {settings.thinkingLevel === 'low' && "Minimal latency. Best for small fixes and simple scripts."}
+                    {settings.thinkingLevel === 'medium' && "Balanced reasoning. Good for standard React/Node features."}
+                    {settings.thinkingLevel === 'high' && "Deep analysis. Checks for security and basic optimization."}
+                    {settings.thinkingLevel === 'maximum' && (
+                        <span className="text-indigo-300 flex items-start gap-1">
+                            <Zap size={10} className="mt-0.5 text-yellow-400" /> 
+                            <strong>Singularity Mode:</strong> Activates rigorous chain-of-thought architecture, security audits, and self-healing verification. Slower, but Principal Engineer quality.
+                        </span>
+                    )}
+                </div>
              </div>
           </div>
 

@@ -18,9 +18,7 @@ import {
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
   Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Server, GitBranch, 
-  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi, GitCommit, GitCompare, UploadCloud,
-  // Fix: Added Brain to imports
-  Brain
+  BarChart3, CheckCircle, AlertCircle, XCircle, Wifi, GitCommit, GitCompare, UploadCloud, Brain
 } from 'lucide-react';
 
 const TEMPLATES: ProjectTemplate[] = [
@@ -225,20 +223,15 @@ const App: React.FC = () => {
 
       const filesArray: GeneratedFile[] = [];
       
-      // Helper: Check if file is binary/image to skip text reading
       const isBinary = (filename: string) => {
           return /\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp4|webm|mp3|zip|tar|gz|pdf|exe|dll|so|dylib|class|jar|pyc|o|a|DS_Store)$/i.test(filename);
       };
 
-      // Recursive Folder Traversal
       const traverseFileTree = async (item: any, path = "") => {
           if (item.isFile) {
-             if (item.name.startsWith('.')) return; // Skip hidden system files
-             
-             // Skip specific directories even if they are files inside them
+             if (item.name.startsWith('.')) return; 
              if (path.includes('node_modules') || path.includes('.git') || path.includes('dist') || path.includes('build')) return;
-             
-             if (isBinary(item.name)) return; // Skip binaries for this text-based IDE
+             if (isBinary(item.name)) return;
 
              const file = await new Promise<File>((resolve, reject) => item.file(resolve, reject));
              const content = await new Promise<string>((resolve) => {
@@ -257,7 +250,7 @@ const App: React.FC = () => {
                     dirReader.readEntries((results: any[]) => {
                         if (results.length > 0) {
                             allEntries.push(...results);
-                            read(); // Continue reading until empty
+                            read(); 
                         } else {
                             resolve(allEntries);
                         }
@@ -283,8 +276,6 @@ const App: React.FC = () => {
           await Promise.all(promises);
 
           if (filesArray.length > 0) {
-              // If single root folder dropped, strip its name from path to make it root
-              // e.g. dropped "my-app" -> "my-app/src/index.ts" -> "src/index.ts"
               const rootDirs = new Set(filesArray.map(f => f.path.split('/')[0]));
               if (rootDirs.size === 1 && items.length === 1 && items[0].webkitGetAsEntry()?.isDirectory) {
                   const rootDir = rootDirs.values().next().value;
@@ -293,17 +284,15 @@ const App: React.FC = () => {
                   });
               }
 
-              // Merge with existing files
               setFiles(prev => {
                   const newFilesMap = new Map(prev.map(f => [f.path, f]));
                   filesArray.forEach(f => newFilesMap.set(f.path, f));
                   return Array.from(newFilesMap.values());
               });
 
-              handleGitInit(filesArray); // Re-init or add to git
+              handleGitInit(filesArray);
               setMessages(prev => [...prev, { role: 'model', text: `Singularity Import: Analyzed and loaded ${filesArray.length} source files.`, timestamp: Date.now() }]);
               
-              // Open first relevant file
               const entry = filesArray.find(f => f.path === 'package.json' || f.path.endsWith('index.html') || f.path.endsWith('App.tsx') || f.path.endsWith('main.py'));
               if (entry) setSelectedFile(entry);
           } else {
@@ -347,7 +336,7 @@ const App: React.FC = () => {
           message,
           author: user ? user.name : 'Developer',
           date: new Date().toISOString(),
-          filesSnapshot: JSON.parse(JSON.stringify(files)) // In a real git, we'd only snapshot staged files + previous state, but here we assume full snapshot for simplicity in simulation
+          filesSnapshot: JSON.parse(JSON.stringify(files))
       };
       setGitState(prev => ({
           ...prev,
@@ -359,7 +348,6 @@ const App: React.FC = () => {
 
   const handlePush = () => {
       setTerminalLogs(prev => [...prev, { type: 'info', content: `Enumerating objects: ${gitState.commits.length}, done.\nCounting objects: 100% (${gitState.commits.length}/${gitState.commits.length}), done.\nWriting objects: 100%, 4.12 KiB | 4.12 MiB/s, done.\nTo https://github.com/omnigen-project/${settings.projectName}.git\n   ${gitState.commits[1]?.id.substr(0,7) || '0000000'}..${gitState.commits[0].id.substr(0,7)}  main -> main`, timestamp: Date.now() }]);
-      // Trigger AI to acknowledge push if needed
       setMessages(prev => [...prev, { role: 'model', text: `Code pushed to origin/main successfully.`, timestamp: Date.now() }]);
   };
 
@@ -368,11 +356,9 @@ const App: React.FC = () => {
       if (!lastCommit) return;
       const originalFile = lastCommit.filesSnapshot.find(f => f.path === path);
       if (originalFile) {
-          // Revert file content
           setFiles(prev => prev.map(f => f.path === path ? { ...f, content: originalFile.content } : f));
           if (selectedFile?.path === path) setSelectedFile({ ...selectedFile, content: originalFile.content });
       } else {
-          // File was new, so delete it
           setFiles(prev => prev.filter(f => f.path !== path));
           if (selectedFile?.path === path) setSelectedFile(null);
       }
@@ -381,11 +367,6 @@ const App: React.FC = () => {
   const handleSelectForDiff = (file: GeneratedFile) => {
       setSelectedFile(file);
       setDiffFile(file);
-      // Only relevant if we have git history
-      if (gitState.isInitialized) {
-          const original = gitState.commits[0]?.filesSnapshot.find(f => f.path === file.path);
-          // Pass original to editor via prop
-      }
   };
 
   const handleGenerateCommitMessage = async (): Promise<string> => {
@@ -407,10 +388,19 @@ const App: React.FC = () => {
         const userMsg: ChatMessage = { role: 'user', text: landingPrompt, timestamp: Date.now(), attachments: landingAttachments };
         setMessages([userMsg]);
 
-        const generatedFiles = await generateAppCode(landingPrompt, settings.model, landingAttachments, scaffold, [], platform, language, settings.thinkingLevel);
+        // Pass thinkingLevel here
+        const generatedFiles = await generateAppCode(
+            landingPrompt, 
+            settings.model, 
+            landingAttachments, 
+            scaffold, 
+            [], 
+            platform, 
+            language, 
+            settings.thinkingLevel
+        );
         setFiles(generatedFiles);
         
-        // Auto-init Git
         handleGitInit(generatedFiles);
 
         setMessages(prev => [...prev, { role: 'model', text: `Project generated successfully (${platform} / ${language}). Git repository initialized.`, timestamp: Date.now() }]);
@@ -437,7 +427,17 @@ const App: React.FC = () => {
       setMessages(prev => [...prev, userMsg]);
 
       try {
-          const updatedFiles = await generateAppCode(text, settings.model, attachments, files, messages, platform, language, settings.thinkingLevel);
+          // Pass thinkingLevel here
+          const updatedFiles = await generateAppCode(
+              text, 
+              settings.model, 
+              attachments, 
+              files, 
+              messages, 
+              platform, 
+              language, 
+              settings.thinkingLevel
+          );
           setFiles(updatedFiles);
           
           if (selectedFile) {
@@ -485,7 +485,6 @@ const App: React.FC = () => {
   };
 
   const handleRenameFile = (oldPath: string, newName: string, isFolder: boolean) => {
-    // Rename logic same as before
     try {
         setFiles(prevFiles => {
         const newFiles = prevFiles.map(file => {
@@ -533,7 +532,7 @@ const App: React.FC = () => {
           setFiles(templateFiles);
           setPlatform(template.platform);
           setLanguage(template.language);
-          handleGitInit(templateFiles); // Init git
+          handleGitInit(templateFiles);
           setMessages([{ role: 'model', text: `Loaded ${template.name} template.`, timestamp: Date.now() }]);
           if (templateFiles.length > 0) {
               setSelectedFile(templateFiles.find(f => f.path.endsWith('tsx') || f.path.endsWith('jsx')) || templateFiles[0]);
@@ -595,30 +594,10 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLandingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-        const newAttachments: Attachment[] = [];
-        for (let i = 0; i < e.target.files.length; i++) {
-            const file = e.target.files[i];
-            const isImage = file.type.startsWith('image/');
-            const content = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target?.result as string);
-                if (isImage) reader.readAsDataURL(file);
-                else reader.readAsText(file);
-            });
-            newAttachments.push({ name: file.name, type: file.type, content, isImage });
-        }
-        setLandingAttachments(prev => [...prev, ...newAttachments]);
-    }
-    if (landingFileRef.current) landingFileRef.current.value = '';
-  };
-
   const handleTerminalCommand = async (command: string) => {
     setTerminalLogs(prev => [...prev, { type: 'command', content: command, timestamp: Date.now() }]);
     const cmd = command.trim().split(' ')[0].toLowerCase();
     
-    // Intercept Git Commands
     if (cmd === 'git') {
         const args = command.trim().split(' ');
         const subCmd = args[1];
@@ -639,7 +618,6 @@ const App: React.FC = () => {
             return;
         }
         if (subCmd === 'status') {
-            const changes = files.length; // simplified
             setTerminalLogs(prev => [...prev, { type: 'stdout', content: `On branch main\nChanges to be committed:\n  (use "git restore --staged <file>..." to unstage)\n\tmodified: ...`, timestamp: Date.now() }]);
             return;
         }
@@ -668,24 +646,6 @@ const App: React.FC = () => {
       }
   };
 
-  const handleDownload = async () => {
-    if (files.length === 0) return;
-    setIsDownloading(true);
-    try {
-      const zip = new JSZip();
-      files.forEach(file => zip.file(file.path, file.content));
-      const content = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${settings.projectName}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (e) { alert("Failed to zip files"); } finally { setIsDownloading(false); }
-  };
-
   // --- RENDER LANDING ---
   if (!hasStarted && files.length === 0) {
      return (
@@ -695,7 +655,6 @@ const App: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Drag Overlay */}
         {isDragging && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-indigo-500/20 backdrop-blur-sm border-4 border-indigo-500 border-dashed m-4 rounded-3xl animate-pulse">
                 <div className="flex flex-col items-center text-white">
@@ -708,11 +667,9 @@ const App: React.FC = () => {
 
         <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={(u) => { setUser(u); setIsAuthModalOpen(false); }} />
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onUpdateSettings={setSettings} />
-        {/* Background Blobs */}
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
         
-        {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[100] w-full">
              <div className="flex items-center gap-2"><Sparkles size={16} className="text-indigo-500" /><span className="font-bold text-lg">OmniGen</span></div>
              <div className="flex gap-3">
@@ -965,7 +922,7 @@ const App: React.FC = () => {
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
                  <span>{selectedFile ? language.toUpperCase() : 'TXT'}</span>
              </div>
-             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">
+             <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
                  <Brain size={10} /> {settings.thinkingLevel.toUpperCase()}
              </div>
              <div className="flex items-center gap-1 hover:bg-white/10 px-1 h-full cursor-pointer">

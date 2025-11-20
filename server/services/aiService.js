@@ -14,7 +14,7 @@ const analyzeComplexity = (prompt) => {
         'architecture', 'microservices', 'database', 'full stack', 'production',
         'react native', 'rust', 'go', 'python', 'c++', 'security', 'auth',
         'realtime', 'socket', 'webrtc', 'encryption', 'algorithm', 'singularity', 
-        'optimize', 'refactor', 'scalable'
+        'optimize', 'refactor', 'scalable', 'enterprise'
     ];
     
     // Almost any "create" request should go to Pro to ensure "World Class" quality
@@ -79,37 +79,24 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   let effectiveModel = model;
   let thinkingBudget = 0;
 
-  // Map thinking levels to token budgets
+  // Enhanced Thinking Budget Strategy
+  // Flash Max: ~24k, Pro Max: ~32k (varies by rollout)
   const budgetMap = {
-      'low': 2048,
-      'medium': 8192,
-      'high': 16384,
-      'maximum': 32768
+      'low': 0, // Speed optimized
+      'medium': 8192, // Balanced
+      'high': 16384, // Deep reasoning
+      'maximum': 28000 // Singularity Mode (Safe limit below 32k cap)
   };
   
   const requestedBudget = budgetMap[thinkingLevel] || 16384;
 
-  // Strategy: Logic for model selection vs user preference
-  if (isComplex || thinkingLevel === 'maximum') {
-      // Force a model that supports deep reasoning
-      if (model.includes('2.5')) {
-          thinkingBudget = requestedBudget;
-      } else {
-          // If user selected Pro but wants maximum thinking, we might stick to Pro (it thinks differently) 
-          // OR swap to Flash 2.5 for the specific "Thinking" capability if Pro doesn't support thinking config yet.
-          // Assuming standard library guidelines: Thinking is primarily on 2.5 Flash/Lite/Pro.
-          // If user is on Pro 3, we trust its internal reasoning. 
-          // If user is on 2.5, we use the budget.
-          if (effectiveModel.includes('2.5')) {
-              thinkingBudget = requestedBudget;
-          }
-      }
+  // Force 2.5 Flash/Pro logic for Thinking
+  if (effectiveModel.includes('2.5')) {
+      thinkingBudget = requestedBudget;
+      // If maximum thinking is requested, ensure we are using a capable model or just use Flash which supports it well
       if (thinkingLevel === 'maximum') {
-          console.log("🚀 SINGULARITY MODE ACTIVE: Max Thinking Budget");
+           console.log("🚀 SINGULARITY MODE: Allocating maximum reasoning budget.");
       }
-  } else {
-      // Standard reasoning
-      if (model.includes('2.5')) thinkingBudget = Math.min(4096, requestedBudget);
   }
 
   const parts = [{ text: promptContext }];
@@ -123,7 +110,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       }
   }
 
-  // MAXIMIZED THINKING CONFIG
+  // CONFIGURATION
   const config = {
       systemInstruction,
       temperature: 0.7, 
@@ -169,6 +156,14 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
       } catch (err) {
           console.error(`[Attempt ${attempt + 1}] Generation failed:`, err.message);
+          // If reasoning failed due to budget/timeouts, retry with lower budget
+          if (err.message.includes('limit') || err.message.includes('timeout')) {
+              if (thinkingBudget > 8192) {
+                  thinkingBudget = 8192;
+                  console.log("⚠️ Reducing thinking budget for retry...");
+                  continue;
+              }
+          }
           if (attempt === MAX_RETRIES) throw new Error(`Failed after ${MAX_RETRIES} attempts: ${err.message}`);
           await new Promise(r => setTimeout(r, 1500)); // Backoff
       }
