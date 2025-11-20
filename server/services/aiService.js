@@ -15,13 +15,15 @@ const analyzeComplexity = (prompt) => {
         'realtime', 'socket', 'webrtc', 'webgl', 'shader', 'compiler',
         'interpreter', 'operating system', 'kernel', 'blockchain', 'smart contract',
         'optimization', 'refactor', 'testing', 'coverage', 'ci/cd', 'deployment',
-        'authentication', 'authorization', 'oauth', 'jwt',
+        'authentication', 'authorization', 'oauth', 'jwt', 'redux', 'zustand',
         'mobile', 'react native', 'expo', 'electron', 'rust', 'c++',
-        'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace'
+        'dashboard', 'analytics', 'ecommerce', 'social media', 'marketplace', '3d', 'three.js'
     ];
     
     let score = 0;
-    if (prompt.length > 150) score += 1;
+    if (prompt.length > 200) score += 1;
+    if (prompt.toLowerCase().includes('full stack') || prompt.toLowerCase().includes('complete')) score += 1;
+
     highTierKeywords.forEach(kw => {
         if (prompt.toLowerCase().includes(kw)) score += 2;
     });
@@ -30,12 +32,12 @@ const analyzeComplexity = (prompt) => {
 };
 
 /**
- * Robustly extracts and parses JSON from AI responses, handling "Thinking" blocks.
+ * Robustly extracts and parses JSON from AI responses, handling "Thinking" blocks and Markdown.
  */
 const parseHealedJson = (text) => {
     if (!text) throw new Error("Empty response from AI");
 
-    // Extract JSON block using regex
+    // 1. Try to extract JSON block using Markdown Code Blocks
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/;
     const match = text.match(jsonBlockRegex);
     
@@ -43,30 +45,31 @@ const parseHealedJson = (text) => {
     if (match && match[1]) {
         cleanText = match[1];
     } else {
+        // 2. Fallback: Remove all markdown code block markers
         cleanText = text.replace(/```json/g, '').replace(/```/g, '');
     }
 
-    // Strip Comments
+    // 3. Strip comments (// ...) to ensure JSON.parse works
     cleanText = cleanText.replace(/\/\/.*$/gm, '');
 
     try {
         return JSON.parse(cleanText);
     } catch (e) {
-        // Aggressive Regex Extraction if standard parse fails
+        // 4. Aggressive Regex Extraction (Find outer-most [ ... ])
         const firstBracket = cleanText.indexOf('[');
         const lastBracket = cleanText.lastIndexOf(']');
         
         if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
             const potentialJson = cleanText.substring(firstBracket, lastBracket + 1);
             try { return JSON.parse(potentialJson); } catch (e2) { /* continue */ }
+            
+            // 5. Fix Trailing Commas in the extracted block
+            const fixedText = potentialJson.replace(/,(\s*[\]}])/g, '$1');
+            try { return JSON.parse(fixedText); } catch (e3) { /* continue */ }
         }
         
-        // Fix Trailing Commas
-        const fixedText = cleanText.replace(/,(\s*[\]}])/g, '$1');
-        try { return JSON.parse(fixedText); } catch (e3) { /* continue */ }
-
         console.error("Failed JSON Text Preview:", text.substring(0, 500) + "...");
-        throw new Error("Failed to parse JSON response.");
+        throw new Error("Failed to parse JSON response from AI.");
     }
 };
 
@@ -82,7 +85,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       const fileSummary = currentFiles.map(f => f.path).join(', ');
       promptContext += `Current Project Structure (${currentFiles.length} files): ${fileSummary}\n`;
       
-      // Truncate large files for context
+      // Truncate large files for context to avoid token limits
       const contextFiles = currentFiles.map(f => ({
           path: f.path,
           content: f.content.length > 12000 ? f.content.substring(0, 12000) + "\n...[TRUNCATED]..." : f.content
@@ -97,6 +100,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
   const isComplex = analyzeComplexity(userPrompt);
   let effectiveModel = model;
   
+  // Auto-upgrade to Pro for complex architecture tasks
   if (isComplex && model === 'gemini-2.5-flash') {
       console.log("Complexity detected: Upgrading to Gemini 3.0 Pro Preview for Architecture Planning");
       effectiveModel = 'gemini-3-pro-preview';
@@ -115,6 +119,25 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
       }
   }
 
+  const isThinkingModel = effectiveModel.includes('2.5') || effectiveModel.includes('pro');
+
+  const config = {
+      systemInstruction,
+      temperature: isThinkingModel ? 0.7 : 0.4, // Thinking models often perform better with slightly higher temp + thinking budget
+      topK: 40,
+      topP: 0.95,
+      // maxOutputTokens: 8192, // Optional: Ensure enough room for code. 
+      // Note: If thinkingBudget is set, effective limit is maxOutputTokens - thinkingBudget.
+      // So we leave maxOutputTokens unset (default max) to allow full generation.
+  };
+
+  // Enable Thinking Budget for deep reasoning on complex tasks
+  if (isThinkingModel && (isComplex || effectiveModel.includes('pro'))) {
+       // Allocate 8k tokens for thinking on complex tasks, 2k for lighter ones
+       config.thinkingConfig = { thinkingBudget: isComplex ? 8192 : 2048 };
+       console.log(`[AI] Deep Thinking Enabled: Budget ${config.thinkingConfig.thinkingBudget}`);
+  }
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`[AI] Generating with ${effectiveModel} (Attempt ${attempt + 1})`);
@@ -122,12 +145,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
         const response = await ai.models.generateContent({
             model: effectiveModel,
             contents: { parts },
-            config: {
-                systemInstruction,
-                temperature: effectiveModel.includes('pro') ? 0.4 : 0.3, 
-                topK: 40,
-                topP: 0.95,
-            }
+            config
         });
 
         const text = response.text;
@@ -140,6 +158,7 @@ const generateApp = async ({ userPrompt, model, attachments = [], currentFiles =
 
         files = files.filter(f => f && f.path && typeof f.content === 'string');
 
+        // Merge with existing if modification
         if (isModification) {
             const updatedFilesMap = new Map(currentFiles.map(f => [f.path, f]));
             files.forEach(f => {

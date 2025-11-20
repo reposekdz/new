@@ -16,7 +16,8 @@ import {
   Loader2, Play, Download, Code2, Sparkles, ArrowRight, 
   Search, Terminal as TerminalIcon, Paperclip, X, Image as ImageIcon, 
   FileText, Layout, MessageSquare, Monitor, Columns, Maximize, PanelLeftClose, PanelLeftOpen, Settings,
-  Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Layers, Server, GitBranch, Database, FileCode2, AppWindow
+  Github, FolderUp, Keyboard, Command, LogIn, Smartphone, Globe, Box, Layers, Server, GitBranch, Database, FileCode2, AppWindow,
+  BarChart3, Gamepad2
 } from 'lucide-react';
 
 // --- TEMPLATE DEFINITIONS ---
@@ -24,34 +25,34 @@ const TEMPLATES: ProjectTemplate[] = [
   {
     id: 'react-vite',
     name: 'React + Vite',
-    description: 'Modern web app with Tailwind CSS and Lucide Icons.',
+    description: 'Standard modern web app structure.',
     icon: <Globe className="text-blue-400" size={20} />,
     platform: 'web',
     language: 'javascript'
   },
   {
-    id: 'node-express',
-    name: 'Node.js API',
-    description: 'Express REST API with TypeScript and CORS.',
-    icon: <Server className="text-green-400" size={20} />,
-    platform: 'web', // Acts as backend, but handled in web context for simplicity here
+    id: 'saas-dashboard',
+    name: 'SaaS Dashboard',
+    description: 'Admin panel with Charts, Tables & Sidebar.',
+    icon: <BarChart3 className="text-purple-400" size={20} />,
+    platform: 'web',
     language: 'typescript'
   },
   {
-    id: 'python-flask',
-    name: 'Python Flask',
-    description: 'Lightweight Python web server backend.',
-    icon: <Database className="text-yellow-400" size={20} />,
-    platform: 'web',
-    language: 'python'
+    id: 'node-express',
+    name: 'Node.js API',
+    description: 'REST API with TypeScript & Express.',
+    icon: <Server className="text-green-400" size={20} />,
+    platform: 'web', 
+    language: 'typescript'
   },
   {
-    id: 'html-css',
-    name: 'Vanilla HTML5',
-    description: 'Simple static website without build steps.',
-    icon: <FileCode2 className="text-orange-400" size={20} />,
+    id: '3d-game',
+    name: '3D Game (R3F)',
+    description: 'Interactive 3D scene with Three.js.',
+    icon: <Box className="text-red-400" size={20} />,
     platform: 'web',
-    language: 'html/css'
+    language: 'javascript'
   }
 ];
 
@@ -343,6 +344,7 @@ const App: React.FC = () => {
       if (templateFiles.length > 0) {
         // Heuristic for finding the "Main" file to show first
         const entry = templateFiles.find(f => 
+          f.path === 'src/App.tsx' || 
           f.path === 'src/App.jsx' || 
           f.path === 'src/index.ts' || 
           f.path === 'app.py' || 
@@ -352,7 +354,7 @@ const App: React.FC = () => {
         setSelectedFile(entry);
         
         // Switch tab based on template type
-        if (template.id === 'react-vite' || template.id === 'html-css') {
+        if (template.platform === 'web') {
           setActiveTab('preview');
         } else {
           setActiveTab('terminal');
@@ -646,7 +648,7 @@ const App: React.FC = () => {
         <div className="z-10 w-full max-w-3xl px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 mb-8 backdrop-blur-sm shadow-lg hover:border-indigo-500/50 transition-colors cursor-default">
             <Sparkles size={14} className="text-amber-400" />
-            <span className="text-xs font-medium text-zinc-300 tracking-wide uppercase">Powered by Gemini 3.0 Pro</span>
+            <span className="text-xs font-medium text-zinc-300 tracking-wide uppercase">Powered by Gemini 3.0 Pro + Deep Thinking</span>
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 drop-shadow-sm">
@@ -698,7 +700,7 @@ const App: React.FC = () => {
                                 </div>
                                 <div>
                                   <div className="text-xs font-semibold text-zinc-200">{template.name}</div>
-                                  <div className="text-[10px] text-zinc-500 leading-tight mt-0.5">{template.description}</div>
+                                  <div className="text-[10px] text-zinc-500 leading-tight mt-0.5 truncate">{template.description}</div>
                                 </div>
                               </button>
                             ))}
@@ -786,7 +788,7 @@ const App: React.FC = () => {
                                     className="bg-zinc-900 border border-zinc-800 text-xs rounded-md px-2 py-1.5 text-zinc-400 focus:outline-none hover:border-zinc-700 transition-colors"
                                 >
                                     <option value="gemini-2.5-flash">⚡ Flash</option>
-                                    <option value="gemini-3-pro-preview">🧠 Pro</option>
+                                    <option value="gemini-3-pro-preview">🧠 Pro (Reasoning)</option>
                                 </select>
                                 <div className="relative group/attach">
                                     <input type="file" multiple className="hidden" ref={landingFileRef} onChange={handleLandingFileSelect} />

@@ -177,6 +177,127 @@ export default App`
         { path: 'src/index.css', content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;` }
       ];
 
+    case 'saas-dashboard':
+      return [
+        ...basicFiles,
+        {
+          path: 'package.json',
+          content: JSON.stringify({
+            name: "saas-dashboard",
+            version: "1.0.0",
+            dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "lucide-react": "^0.300.0", "recharts": "^2.12.0" },
+            scripts: { "dev": "vite", "build": "vite build" }
+          }, null, 2)
+        },
+        { path: 'index.html', content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Dashboard</title><script src="https://cdn.tailwindcss.com"></script></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>` },
+        { path: 'src/main.tsx', content: `import React from 'react'; import ReactDOM from 'react-dom/client'; import App from './App'; import './index.css'; ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);` },
+        { path: 'src/index.css', content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;` },
+        {
+          path: 'src/App.tsx',
+          content: `import React from 'react';
+import { LayoutDashboard, Users, Settings, LogOut, Bell } from 'lucide-react';
+
+const Sidebar = () => (
+  <div className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col h-screen">
+    <div className="p-6 border-b border-zinc-800 font-bold text-indigo-500 text-xl flex items-center gap-2">
+       <LayoutDashboard /> OmniDash
+    </div>
+    <div className="flex-1 p-4 space-y-2">
+       <div className="px-4 py-2 bg-indigo-600/10 text-indigo-400 rounded-lg font-medium flex items-center gap-3 cursor-pointer"><LayoutDashboard size={18}/> Dashboard</div>
+       <div className="px-4 py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg font-medium flex items-center gap-3 cursor-pointer"><Users size={18}/> Customers</div>
+       <div className="px-4 py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg font-medium flex items-center gap-3 cursor-pointer"><Settings size={18}/> Settings</div>
+    </div>
+    <div className="p-4 border-t border-zinc-800">
+       <div className="px-4 py-2 text-red-400 hover:bg-red-900/10 rounded-lg font-medium flex items-center gap-3 cursor-pointer"><LogOut size={18}/> Logout</div>
+    </div>
+  </div>
+);
+
+const Card = ({ title, value, trend }: any) => (
+  <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
+     <div className="text-zinc-500 text-sm font-medium mb-1">{title}</div>
+     <div className="text-3xl font-bold text-white mb-2">{value}</div>
+     <div className="text-emerald-400 text-xs font-medium">{trend}</div>
+  </div>
+);
+
+export default function App() {
+  return (
+    <div className="flex h-screen bg-black text-white">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+         <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-8">
+             <h2 className="font-semibold">Overview</h2>
+             <div className="p-2 bg-zinc-900 rounded-full border border-zinc-800"><Bell size={18} /></div>
+         </header>
+         <main className="flex-1 overflow-y-auto p-8">
+             <div className="grid grid-cols-3 gap-6 mb-8">
+                <Card title="Total Revenue" value="$45,231.89" trend="+20.1% from last month" />
+                <Card title="Active Users" value="+2350" trend="+180.1% from last month" />
+                <Card title="Sales" value="+12,234" trend="+19% from last month" />
+             </div>
+             <div className="bg-zinc-900 rounded-xl border border-zinc-800 h-96 flex items-center justify-center text-zinc-500">
+                 [Chart Area Placeholder - Ask AI to add Recharts]
+             </div>
+         </main>
+      </div>
+    </div>
+  );
+}`
+        }
+      ];
+
+    case '3d-game':
+      return [
+         ...basicFiles,
+         {
+            path: 'package.json',
+            content: JSON.stringify({
+              name: "r3f-game",
+              dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0", "three": "^0.160.0", "@react-three/fiber": "^8.15.0", "@react-three/drei": "^9.99.0" },
+              scripts: { "dev": "vite", "build": "vite build" }
+            }, null, 2)
+         },
+         { path: 'index.html', content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><title>3D Game</title><style>body, html, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }</style></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>` },
+         {
+            path: 'src/main.jsx',
+            content: `import { createRoot } from 'react-dom/client'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { useRef, useState } from 'react'
+
+function Box(props) {
+  const meshRef = useRef()
+  const [hovered, setHover] = useState(false)
+  const [active, setActive] = useState(false)
+  
+  useFrame((state, delta) => (meshRef.current.rotation.x += delta))
+  
+  return (
+    <mesh
+      {...props}
+      ref={meshRef}
+      scale={active ? 1.5 : 1}
+      onClick={() => setActive(!active)}
+      onPointerOver={() => setHover(true)}
+      onPointerOut={() => setHover(false)}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color={hovered ? 'hotpink' : 'orange'} />
+    </mesh>
+  )
+}
+
+createRoot(document.getElementById('root')).render(
+  <Canvas>
+    <ambientLight intensity={Math.PI / 2} />
+    <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
+    <pointLight position={[-10, -10, -10]} decay={0} intensity={Math.PI} />
+    <Box position={[-1.2, 0, 0]} />
+    <Box position={[1.2, 0, 0]} />
+  </Canvas>,
+)`
+         }
+      ];
+
     case 'node-express':
       return [
         ...setupProject('express-api', 'typescript'),
@@ -216,104 +337,6 @@ app.listen(PORT, () => {
         }
       ];
     
-    case 'python-flask':
-      return [
-        ...setupProject('flask-app', 'python'),
-        {
-          path: 'requirements.txt',
-          content: `flask==3.0.0\ngunicorn==21.2.0`
-        },
-        {
-          path: 'app.py',
-          content: `from flask import Flask, jsonify
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return jsonify({
-        "message": "Hello from Flask!",
-        "status": "running"
-    })
-
-@app.route('/api/data')
-def get_data():
-    return jsonify({
-        "items": [1, 2, 3, 4, 5],
-        "source": "OmniGen"
-    })
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)`
-        }
-      ];
-
-    case 'html-css':
-      return [
-        {
-          path: 'index.html',
-          content: `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vanilla App</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <h1>Hello World</h1>
-        <p id="counter">Count: 0</p>
-        <button id="btn">Increment</button>
-    </div>
-    <script src="script.js"></script>
-</body>
-</html>`
-        },
-        {
-          path: 'style.css',
-          content: `body {
-    background-color: #121212;
-    color: #e0e0e0;
-    font-family: sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-}
-.container {
-    text-align: center;
-    padding: 2rem;
-    border: 1px solid #333;
-    border-radius: 10px;
-    background: #1e1e1e;
-}
-button {
-    padding: 10px 20px;
-    background: #6200ee;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-button:hover {
-    background: #3700b3;
-}`
-        },
-        {
-          path: 'script.js',
-          content: `let count = 0;
-const btn = document.getElementById('btn');
-const display = document.getElementById('counter');
-
-btn.addEventListener('click', () => {
-    count++;
-    display.innerText = 'Count: ' + count;
-});`
-        }
-      ];
-
     default:
       return basicFiles;
   }

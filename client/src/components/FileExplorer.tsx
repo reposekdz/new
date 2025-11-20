@@ -4,7 +4,10 @@ import { GeneratedFile } from '../types';
 import { 
   File, FileJson, FileCode, FileType2, Folder, FolderOpen, 
   ChevronDown, ChevronRight, Image as ImageIcon, Music, 
-  Database, Settings, Terminal, Layout, Edit2, Trash2, MoreVertical, Search, Clock, X
+  Database, Settings, Terminal, Layout, Edit2, Trash2, 
+  MoreVertical, Search, Clock, X, Box, Coffee, FileText, 
+  Globe, Server, Shield, Cpu, Gem, Atom, Video, Key, 
+  PlayCircle, Braces
 } from 'lucide-react';
 
 interface FileExplorerProps {
@@ -32,27 +35,72 @@ const getFileIcon = (filename: string) => {
   const lower = filename.toLowerCase();
   const ext = filename.split('.').pop()?.toLowerCase();
 
-  if (lower.includes('docker')) return <Layout size={15} className="text-blue-400" />;
-  if (lower.includes('.yml') || lower.includes('.yaml') || lower.includes('config')) return <Settings size={15} className="text-red-400" />;
-  if (lower.includes('.sh')) return <Terminal size={15} className="text-green-500" />;
-  if (lower.includes('sql')) return <Database size={15} className="text-purple-400" />;
-  
+  // Specific Filenames
+  if (lower === 'package.json') return <Box size={15} className="text-red-400" />;
+  if (lower === 'tsconfig.json' || lower.includes('jsconfig')) return <Settings size={15} className="text-blue-400" />;
+  if (lower === 'dockerfile' || lower.includes('docker')) return <Box size={15} className="text-blue-500" />;
+  if (lower === '.gitignore' || lower === '.env') return <Settings size={15} className="text-zinc-500" />;
+  if (lower === 'readme.md') return <FileText size={15} className="text-emerald-400" />;
+
+  // Extensions
   switch (ext) {
-    case 'html': return <FileCode size={15} className="text-orange-400" />;
-    case 'css': return <FileType2 size={15} className="text-blue-400" />;
-    case 'js': 
-    case 'jsx': return <FileCode size={15} className="text-yellow-400" />;
-    case 'ts': 
-    case 'tsx': return <FileCode size={15} className="text-blue-500" />;
-    case 'json': return <FileJson size={15} className="text-green-400" />;
-    case 'md': return <File size={15} className="text-gray-400" />;
-    case 'py': return <FileCode size={15} className="text-yellow-300" />;
-    case 'rs': return <FileCode size={15} className="text-orange-600" />;
-    case 'go': return <FileCode size={15} className="text-cyan-400" />;
+    // Web
+    case 'html': return <Globe size={15} className="text-orange-500" />;
+    case 'css': 
+    case 'scss':
+    case 'less': return <FileType2 size={15} className="text-blue-400" />;
+    case 'js': return <FileCode size={15} className="text-yellow-400" />;
+    case 'jsx': return <Atom size={15} className="text-cyan-400" />; // React
+    case 'ts': return <FileCode size={15} className="text-blue-500" />;
+    case 'tsx': return <Atom size={15} className="text-blue-400" />; // React TS
+    case 'json': return <FileJson size={15} className="text-yellow-200" />;
+    
+    // Backend / Systems
+    case 'py': return <FileCode size={15} className="text-blue-300" />;
+    case 'go': return <FileCode size={15} className="text-cyan-500" />;
+    case 'rs': return <Settings size={15} className="text-orange-600" />; // Rust (Gear is common for rust)
+    case 'java': return <Coffee size={15} className="text-red-500" />;
+    case 'rb': return <Gem size={15} className="text-red-600" />;
+    case 'php': return <Server size={15} className="text-indigo-400" />;
+    case 'c': 
+    case 'cpp': 
+    case 'h': return <FileCode size={15} className="text-blue-600" />;
+    case 'cs': return <FileCode size={15} className="text-purple-600" />;
+
+    // Data / Config
+    case 'sql': 
+    case 'db': 
+    case 'sqlite': return <Database size={15} className="text-purple-400" />;
+    case 'yml': 
+    case 'yaml': 
+    case 'toml': 
+    case 'xml': return <Settings size={15} className="text-zinc-400" />;
+    case 'sh': 
+    case 'bash': 
+    case 'zsh': return <Terminal size={15} className="text-green-500" />;
+    
+    // Assets
+    case 'md': 
+    case 'txt': return <FileText size={15} className="text-zinc-400" />;
     case 'png': 
     case 'jpg':
-    case 'svg': return <ImageIcon size={15} className="text-purple-400" />;
-    default: return <File size={15} className="text-zinc-400" />;
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+    case 'ico': 
+    case 'webp': return <ImageIcon size={15} className="text-purple-400" />;
+    case 'mp4':
+    case 'webm':
+    case 'mov': return <Video size={15} className="text-pink-400" />;
+    case 'mp3':
+    case 'wav': return <Music size={15} className="text-pink-400" />;
+    
+    // Security
+    case 'pem':
+    case 'crt':
+    case 'key': return <Key size={15} className="text-yellow-500" />;
+
+    default: return <File size={15} className="text-zinc-500" />;
   }
 };
 
@@ -123,7 +171,7 @@ const FileTreeItem: React.FC<{
           onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
           onContextMenu={handleContextMenu}
         >
-          <span className="opacity-70">
+          <span className="opacity-70 transition-transform duration-200">
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </span>
           {isExpanded ? <FolderOpen size={15} className="text-indigo-400/80" /> : <Folder size={15} className="text-indigo-400/80" />}
@@ -140,11 +188,11 @@ const FileTreeItem: React.FC<{
               className="ml-1 bg-zinc-800 text-xs text-white px-1 py-0.5 rounded border border-indigo-500 outline-none w-full min-w-[50px]"
             />
           ) : (
-            <span className="text-xs font-medium ml-1">{node.name}</span>
+            <span className="text-xs font-medium ml-1 truncate">{node.name}</span>
           )}
         </div>
         {isExpanded && (
-          <div>
+          <div className="animate-in slide-in-from-left-1 duration-200">
             {sortedChildren.map(child => (
               <FileTreeItem 
                 key={child.path} 
@@ -187,7 +235,7 @@ const FileTreeItem: React.FC<{
           className="bg-zinc-800 text-xs font-mono text-white px-1 py-0 rounded border border-indigo-500 outline-none w-full min-w-[50px]"
         />
       ) : (
-        <span className="text-xs font-mono truncate">{node.name}</span>
+        <span className={`text-xs font-mono truncate ${isSelected ? 'font-semibold' : ''}`}>{node.name}</span>
       )}
     </div>
   );
